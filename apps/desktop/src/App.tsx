@@ -1,44 +1,91 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { TodoList } from "@/components/TodoList";
+import { Settings } from "@/components/Settings";
+import { CopilotPanel } from "@/components/CopilotPanel";
+import { useTodoStore, useConfigStore, useAppState } from "@/store";
+import { MonitorService } from "@/services/monitor";
+import { loadTodos, saveTodos } from "@/services/storage";
+import type { TodoItem } from "@/types";
 
 function App() {
-  const [todos, setTodos] = useState<
-    { id: string; title: string; done: boolean }[]
-  >([]);
+  const [showSettings, setShowSettings] = useState(false);
+  const { todos, addTodos, setTodos } = useTodoStore();
+  const { config } = useConfigStore();
+  const { monitoring, setMonitoring, copilotVisible, setCopilotVisible, setLastOcrText } =
+    useAppState();
+  const [monitor, setMonitor] = useState<MonitorService | null>(null);
+
+  // Load saved todos on startup
+  useEffect(() => {
+    loadTodos().then((saved) => {
+      if (saved.length > 0) setTodos(saved);
+    });
+  }, []);
+
+  // Persist todos on change
+  useEffect(() => {
+    saveTodos(todos);
+  }, [todos]);
+
+  // Handle new todos found by monitor
+  const handleTodosFound = useCallback(
+    (newTodos: TodoItem[]) => {
+      addTodos(newTodos);
+    },
+    [addTodos]
+  );
+
+  // Toggle monitoring
+  const toggleMonitoring = () => {
+    if (monitoring) {
+      monitor?.stop();
+      setMonitoring(false);
+    } else {
+      try {
+        const svc = new MonitorService(config, handleTodosFound);
+        svc.start();
+        setMonitor(svc);
+        setMonitoring(true);
+      } catch (err) {
+        console.error("Failed to start monitor:", err);
+      }
+    }
+  };
 
   return (
     <div className="app">
       <header className="app-header">
         <h1>📋 Taskly</h1>
-        <p className="subtitle">智能待办识别与管理</p>
+        <div className="header-actions">
+          <button
+            className={`btn-monitor ${monitoring ? "active" : ""}`}
+            onClick={toggleMonitoring}
+          >
+            {monitoring ? "⏸ 暂停" : "▶ 开始监控"}
+          </button>
+          <button
+            className="btn-icon"
+            onClick={() => setCopilotVisible(!copilotVisible)}
+            title="Copilot"
+          >
+            🤖
+          </button>
+          <button
+            className="btn-icon"
+            onClick={() => setShowSettings(true)}
+            title="设置"
+          >
+            ⚙️
+          </button>
+        </div>
       </header>
 
       <main className="app-main">
-        {todos.length === 0 ? (
-          <div className="empty-state">
-            <p>暂无待办事项</p>
-            <p className="hint">Taskly 正在监控您的微信窗口，发现待办时会自动添加</p>
-          </div>
-        ) : (
-          <ul className="todo-list">
-            {todos.map((todo) => (
-              <li key={todo.id} className={todo.done ? "done" : ""}>
-                <input
-                  type="checkbox"
-                  checked={todo.done}
-                  onChange={() =>
-                    setTodos((prev) =>
-                      prev.map((t) =>
-                        t.id === todo.id ? { ...t, done: !t.done } : t
-                      )
-                    )
-                  }
-                />
-                <span>{todo.title}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <TodoList />
       </main>
+
+      {copilotVisible && <CopilotPanel />}
+      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
     </div>
   );
 }
