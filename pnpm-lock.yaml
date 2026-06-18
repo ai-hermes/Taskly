@@ -30,7 +30,7 @@ importers:
         version: 5.0.14(@types/react@18.3.31)(react@18.3.1)
     devDependencies:
       '@tauri-apps/cli':
-        specifier: ^2.0.0
+        specifier: ^2.11.2
         version: 2.11.2
       '@types/react':
         specifier: ^18.3.0
