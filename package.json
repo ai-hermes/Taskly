@@ -1,0 +1,11 @@
+{
+  "name": "taskly",
+  "version": "0.1.0",
+  "private": true,
+  "description": "智能待办识别与管理工具 - 通过截图OCR识别聊天中的待办事项",
+  "scripts": {
+    "dev": "pnpm --filter @taskly/desktop dev",
+    "build": "pnpm --filter @taskly/desktop build",
+    "dev:server": "cd apps/server && go run cmd/server/main.go"
+  }
+}
