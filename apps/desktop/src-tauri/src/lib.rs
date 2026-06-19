@@ -8,7 +8,7 @@ use tauri::{
 };
 
 #[tauri::command]
-async fn capture_screenshot(app: tauri::AppHandle) -> Result<String, String> {
+async fn capture_screenshot(_app: tauri::AppHandle) -> Result<String, String> {
     screenshot::capture_focused_window()
         .map_err(|e| format!("Screenshot failed: {}", e))
 }
@@ -36,7 +36,6 @@ async fn open_widget_window(app: tauri::AppHandle) -> Result<(), String> {
         .title("Taskly Widget")
         .inner_size(240.0, 300.0)
         .decorations(false)
-        .transparent(true)
         .always_on_top(true)
         .resizable(false)
         .skip_taskbar(true)

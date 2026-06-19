@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::process::Command;
 
 /// Capture a screenshot of the currently focused window on macOS.
