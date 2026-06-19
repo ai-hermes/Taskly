@@ -29,6 +29,7 @@ def init_ocr():
         det_model_dir=None,  # auto-download
         rec_model_dir=None,  # auto-download
         cls_model_dir=None,  # auto-download
+        download_path=model_root,
         show_log=False,
     )
     return ocr
