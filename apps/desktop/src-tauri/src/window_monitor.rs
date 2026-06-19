@@ -1,7 +1,7 @@
 use std::process::Command;
 
 /// Default whitelist of monitored applications
-const WHITELIST: &[&str] = &["微信", "WeChat"];
+const WHITELIST: &[&str] = &["微信", "WeChat", "Weixin"];
 
 /// Get the name of the frontmost application on macOS
 pub fn get_frontmost_app() -> Result<String, Box<dyn std::error::Error>> {
@@ -13,14 +13,14 @@ pub fn get_frontmost_app() -> Result<String, Box<dyn std::error::Error>> {
         .output()?;
 
     if !output.status.success() {
-        return Err(format!(
-            "Failed to get frontmost app: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("[window] failed to get frontmost app: {}", stderr.trim());
+        return Err(format!("Failed to get frontmost app: {}", stderr).into());
     }
 
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    eprintln!("[window] frontmost app = {:?}", name);
+    Ok(name)
 }
 
 /// Check if the given application name is in the whitelist
