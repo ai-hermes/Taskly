@@ -18,6 +18,8 @@ def get_model_dir():
 def init_ocr():
     """Initialize PaddleOCR with lightweight PP-OCRv4 mobile model"""
     from paddleocr import PaddleOCR
+    model_root = get_model_dir()
+    os.environ.setdefault("PADDLEOCR_HOME", model_root)
 
     ocr = PaddleOCR(
         use_angle_cls=True,

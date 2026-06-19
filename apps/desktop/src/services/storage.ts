@@ -7,7 +7,7 @@ let store: Awaited<ReturnType<typeof load>> | null = null;
 
 async function getStore() {
   if (!store) {
-    store = await load(STORE_PATH, { autoSave: true });
+    store = await load(STORE_PATH, { autoSave: true, defaults: {} });
   }
   return store;
 }

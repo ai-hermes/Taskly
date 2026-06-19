@@ -5,6 +5,11 @@ import type { AppConfig } from "@/types";
 export function Settings({ onClose }: { onClose: () => void }) {
   const { config, updateConfig } = useConfigStore();
   const [local, setLocal] = useState<AppConfig>({ ...config });
+  const openaiConfig = local.llmConfig.openai || { apiKey: "", model: "gpt-4o-mini" };
+  const ollamaConfig = local.llmConfig.ollama || {
+    baseUrl: "http://localhost:11434",
+    model: "qwen2.5:7b",
+  };
 
   const handleSave = () => {
     updateConfig(local);
@@ -72,14 +77,14 @@ export function Settings({ onClose }: { onClose: () => void }) {
                 API Key
                 <input
                   type="password"
-                  value={local.llmConfig.openai?.apiKey || ""}
+                  value={openaiConfig.apiKey}
                   onChange={(e) =>
                     setLocal({
                       ...local,
                       llmConfig: {
                         ...local.llmConfig,
                         openai: {
-                          ...local.llmConfig.openai!,
+                          ...openaiConfig,
                           apiKey: e.target.value,
                         },
                       },
@@ -91,14 +96,14 @@ export function Settings({ onClose }: { onClose: () => void }) {
                 模型
                 <input
                   type="text"
-                  value={local.llmConfig.openai?.model || "gpt-4o-mini"}
+                  value={openaiConfig.model}
                   onChange={(e) =>
                     setLocal({
                       ...local,
                       llmConfig: {
                         ...local.llmConfig,
                         openai: {
-                          ...local.llmConfig.openai!,
+                          ...openaiConfig,
                           model: e.target.value,
                         },
                       },
@@ -115,14 +120,14 @@ export function Settings({ onClose }: { onClose: () => void }) {
                 Ollama 地址
                 <input
                   type="text"
-                  value={local.llmConfig.ollama?.baseUrl || "http://localhost:11434"}
+                  value={ollamaConfig.baseUrl}
                   onChange={(e) =>
                     setLocal({
                       ...local,
                       llmConfig: {
                         ...local.llmConfig,
                         ollama: {
-                          ...local.llmConfig.ollama!,
+                          ...ollamaConfig,
                           baseUrl: e.target.value,
                         },
                       },
@@ -134,14 +139,14 @@ export function Settings({ onClose }: { onClose: () => void }) {
                 模型名称
                 <input
                   type="text"
-                  value={local.llmConfig.ollama?.model || "qwen2.5:7b"}
+                  value={ollamaConfig.model}
                   onChange={(e) =>
                     setLocal({
                       ...local,
                       llmConfig: {
                         ...local.llmConfig,
                         ollama: {
-                          ...local.llmConfig.ollama!,
+                          ...ollamaConfig,
                           model: e.target.value,
                         },
                       },

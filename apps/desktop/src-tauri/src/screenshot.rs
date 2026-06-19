@@ -8,8 +8,11 @@ pub fn capture_focused_window() -> Result<String, Box<dyn std::error::Error>> {
     let filename = format!("taskly_screenshot_{}.png", chrono_timestamp());
     let filepath = temp_dir.join(&filename);
 
+    let filepath_str = filepath
+        .to_str()
+        .ok_or("Invalid temporary path for screenshot")?;
     let output = Command::new("screencapture")
-        .args(["-l", &get_focused_window_id()?, filepath.to_str().unwrap()])
+        .args(["-l", &get_focused_window_id()?, filepath_str])
         .output()?;
 
     if !output.status.success() {

@@ -9,23 +9,31 @@ import type { TodoItem } from "@/types";
 
 function App() {
   const [showSettings, setShowSettings] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
   const { todos, addTodos, setTodos } = useTodoStore();
   const { config } = useConfigStore();
-  const { monitoring, setMonitoring, copilotVisible, setCopilotVisible, setLastOcrText } =
-    useAppState();
+  const { monitoring, setMonitoring, copilotVisible, setCopilotVisible } = useAppState();
   const [monitor, setMonitor] = useState<MonitorService | null>(null);
 
   // Load saved todos on startup
   useEffect(() => {
     loadTodos().then((saved) => {
       if (saved.length > 0) setTodos(saved);
+      setIsLoaded(true);
     });
-  }, []);
+  }, [setTodos]);
 
   // Persist todos on change
   useEffect(() => {
+    if (!isLoaded) return;
     saveTodos(todos);
-  }, [todos]);
+  }, [todos, isLoaded]);
+
+  useEffect(() => {
+    return () => {
+      monitor?.stop();
+    };
+  }, [monitor]);
 
   // Handle new todos found by monitor
   const handleTodosFound = useCallback(
