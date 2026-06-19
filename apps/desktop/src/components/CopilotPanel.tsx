@@ -1,7 +1,7 @@
 import { useAppState } from "@/store";
 
 export function CopilotPanel() {
-  const { monitoring, lastOcrText, setCopilotVisible } = useAppState();
+  const { monitoring, lastOcrText, lastMonitorError, setCopilotVisible } = useAppState();
 
   return (
     <div className="copilot-panel">
@@ -22,6 +22,13 @@ export function CopilotPanel() {
           <div className="copilot-ocr-preview">
             <h4>最近识别</h4>
             <p className="ocr-text">{lastOcrText.slice(0, 200)}</p>
+          </div>
+        )}
+
+        {lastMonitorError && (
+          <div className="copilot-ocr-preview">
+            <h4>最近错误</h4>
+            <p className="ocr-text">{lastMonitorError}</p>
           </div>
         )}
 

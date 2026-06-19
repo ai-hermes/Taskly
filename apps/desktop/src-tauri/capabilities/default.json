@@ -4,7 +4,16 @@
   "windows": ["main", "widget"],
   "permissions": [
     "core:default",
-    "shell:allow-spawn",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "binaries/ocr-engine",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    },
     "shell:allow-stdin-write",
     "shell:allow-open",
     "store:allow-get",

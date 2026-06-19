@@ -16,6 +16,7 @@ packages/ocr-engine/__pycache__/
 packages/ocr-engine/*.egg-info/
 packages/ocr-engine/dist/
 packages/ocr-engine/build/
+packages/ocr-engine/*.spec
 packages/ocr-engine/venv/
 packages/ocr-engine/.venv/
 
@@ -37,6 +38,8 @@ Thumbs.db
 # Tauri
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/gen/
+# Sidecar binaries (built locally via packages/ocr-engine/build.sh)
+apps/desktop/src-tauri/binaries/
 
 # OCR models (downloaded at runtime)
 packages/ocr-engine/models/

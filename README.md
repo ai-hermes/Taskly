@@ -40,7 +40,7 @@ Taskly/
 - pnpm >= 8
 - Rust (latest stable)
 - Go >= 1.21
-- Python >= 3.9
+- Python 3.9 - 3.12（推荐 3.11）
 
 ### 快速开始
 
@@ -48,12 +48,19 @@ Taskly/
 # 安装依赖
 pnpm install
 
+# 首次本地开发需构建 OCR sidecar（macOS）
+OCR_PYTHON=python3.11 bash packages/ocr-engine/build.sh
+mkdir -p apps/desktop/src-tauri/binaries
+cp packages/ocr-engine/dist/ocr-engine apps/desktop/src-tauri/binaries/ocr-engine-aarch64-apple-darwin
+
 # 启动桌面应用（开发模式）
 pnpm dev
 
 # 启动后端服务
 pnpm dev:server
 ```
+
+> 提示：默认使用 Ollama，本地需有可用模型（如 `qwen2.5:7b`）；并且 macOS 需要给 Taskly 授予「屏幕录制」与「辅助功能」权限，否则无法截图/识别。
 
 ## 隐私说明
 
