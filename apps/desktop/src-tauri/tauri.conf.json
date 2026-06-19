@@ -46,7 +46,6 @@
   "plugins": {
     "shell": {
       "open": true
-    },
-    "store": {}
+    }
   }
 }
