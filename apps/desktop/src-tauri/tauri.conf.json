@@ -45,14 +45,7 @@
   },
   "plugins": {
     "shell": {
-      "sidecar": true,
-      "scope": [
-        {
-          "name": "ocr-engine",
-          "cmd": "ocr-engine",
-          "args": true
-        }
-      ]
+      "open": true
     },
     "store": {}
   }
