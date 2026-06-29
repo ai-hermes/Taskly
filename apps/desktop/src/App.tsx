@@ -2,11 +2,13 @@ import { useState, useEffect, useCallback } from "react";
 import { TodoList } from "@/components/TodoList";
 import { Settings } from "@/components/Settings";
 import { CopilotPanel } from "@/components/CopilotPanel";
+import { PermissionGuide } from "@/components/PermissionGuide";
 import { useTodoStore, useConfigStore, useAppState } from "@/store";
 import { MonitorService } from "@/services/monitor";
 import { loadConfig, loadTodos, saveTodos } from "@/services/storage";
 import { setDebuggerConsole } from "@/services/debugger";
 import { showMainWindow } from "@/services/window";
+import { checkScreenRecordingPermission } from "@/services/permissions";
 import type { TodoItem } from "@/types";
 import { GearSix, Pause, Play, Robot } from "@phosphor-icons/react";
 
@@ -23,10 +25,18 @@ function LoadingSkeleton() {
 function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [monitorError, setMonitorError] = useState("");
+  const [hasPermission, setHasPermission] = useState(true);
+  const [showPermissionGuide, setShowPermissionGuide] = useState(false);
   const { todos, addTodos, setTodos } = useTodoStore();
   const { config, updateConfig } = useConfigStore();
-  const { monitoring, setMonitoring, copilotVisible, setCopilotVisible } = useAppState();
+  const {
+    monitoring,
+    setMonitoring,
+    copilotVisible,
+    setCopilotVisible,
+    setLastOcrText,
+    setLastMonitorError,
+  } = useAppState();
   const [monitor, setMonitor] = useState<MonitorService | null>(null);
 
   // Load saved todos on startup
@@ -63,6 +73,14 @@ function App() {
     });
   }, [config.debuggerConsoleEnabled]);
 
+  // Check screen recording permission on startup; guide the user if missing.
+  useEffect(() => {
+    checkScreenRecordingPermission().then((granted) => {
+      setHasPermission(granted);
+      if (!granted) setShowPermissionGuide(true);
+    });
+  }, []);
+
   // Persist todos on change
   useEffect(() => {
     if (!isLoaded) return;
@@ -84,20 +102,36 @@ function App() {
   );
 
   // Toggle monitoring
-  const toggleMonitoring = () => {
-    setMonitorError("");
+  const toggleMonitoring = async () => {
     if (monitoring) {
       monitor?.stop();
       setMonitoring(false);
+      setLastMonitorError("");
     } else {
+      // Re-check permission before starting; capture won't work without it.
+      const granted = await checkScreenRecordingPermission();
+      setHasPermission(granted);
+      if (!granted) {
+        setShowPermissionGuide(true);
+        setLastMonitorError("缺少屏幕录制权限，无法截图");
+        return;
+      }
       try {
-        const svc = new MonitorService(config, handleTodosFound);
-        svc.start();
+        const svc = new MonitorService(config, handleTodosFound, {
+          onOcrText: (text) => {
+            setLastOcrText(text);
+            setLastMonitorError("");
+          },
+          onError: (message) => setLastMonitorError(message),
+        });
+        await svc.start();
         setMonitor(svc);
         setMonitoring(true);
+        setLastMonitorError("");
       } catch (err) {
         console.error("Failed to start monitor:", err);
-        setMonitorError("监控启动失败。请检查系统权限和模型设置。");
+        const message = err instanceof Error ? err.message : String(err);
+        setLastMonitorError(message);
       }
     }
   };
@@ -139,7 +173,11 @@ function App() {
         </div>
       </header>
 
-      {monitorError && <p className="app-error" role="alert">{monitorError}</p>}
+      {!hasPermission && !showPermissionGuide && (
+        <div className="permission-banner" onClick={() => setShowPermissionGuide(true)}>
+          ⚠️ 缺少屏幕录制权限，截图与识别将无法工作 —— 点击查看如何开启
+        </div>
+      )}
 
       <main className="app-main">
         {isLoaded ? <TodoList /> : <LoadingSkeleton />}
@@ -147,6 +185,15 @@ function App() {
 
       {copilotVisible && <CopilotPanel />}
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {showPermissionGuide && (
+        <PermissionGuide
+          onGranted={() => {
+            setHasPermission(true);
+            setShowPermissionGuide(false);
+          }}
+          onDismiss={() => setShowPermissionGuide(false)}
+        />
+      )}
     </div>
   );
 }

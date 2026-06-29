@@ -35,7 +35,7 @@ interface ConfigStore {
 }
 
 const defaultConfig: AppConfig = {
-  whitelist: ["微信", "WeChat"],
+  whitelist: ["微信", "WeChat", "Weixin"],
   screenshotInterval: 30,
   llmProvider: "ollama",
   llmConfig: {
@@ -66,16 +66,20 @@ interface AppState {
   monitoring: boolean;
   copilotVisible: boolean;
   lastOcrText: string;
+  lastMonitorError: string;
   setMonitoring: (v: boolean) => void;
   setCopilotVisible: (v: boolean) => void;
   setLastOcrText: (text: string) => void;
+  setLastMonitorError: (text: string) => void;
 }
 
 export const useAppState = create<AppState>((set) => ({
   monitoring: false,
   copilotVisible: true,
   lastOcrText: "",
+  lastMonitorError: "",
   setMonitoring: (v) => set({ monitoring: v }),
   setCopilotVisible: (v) => set({ copilotVisible: v }),
   setLastOcrText: (text) => set({ lastOcrText: text }),
+  setLastMonitorError: (text) => set({ lastMonitorError: text }),
 }));

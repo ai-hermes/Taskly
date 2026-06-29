@@ -1,4 +1,5 @@
 mod ocr;
+mod permissions;
 mod screenshot;
 mod window_monitor;
 
@@ -31,6 +32,29 @@ fn set_macos_dock_icon() {}
 #[tauri::command]
 async fn capture_screenshot(_app: tauri::AppHandle) -> Result<String, String> {
     screenshot::capture_focused_window().map_err(|e| format!("Screenshot failed: {}", e))
+}
+
+#[tauri::command]
+fn check_screen_recording_permission() -> bool {
+    let granted = permissions::has_screen_recording_permission();
+    eprintln!("[permissions] screen recording granted = {}", granted);
+    granted
+}
+
+#[tauri::command]
+fn request_screen_recording_permission() -> bool {
+    eprintln!("[permissions] requesting screen recording permission...");
+    let granted = permissions::request_screen_recording_permission();
+    eprintln!(
+        "[permissions] after request, screen recording granted = {}",
+        granted
+    );
+    granted
+}
+
+#[tauri::command]
+fn open_screen_recording_settings() -> Result<(), String> {
+    permissions::open_screen_recording_settings().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -120,6 +144,7 @@ async fn set_debugger_console(app: tauri::AppHandle, enabled: bool) -> Result<()
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             capture_screenshot,
@@ -130,11 +155,20 @@ pub fn run() {
             close_widget_window,
             show_main_window,
             set_debugger_console,
+            check_screen_recording_permission,
+            request_screen_recording_permission,
+            open_screen_recording_settings,
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_icon(DOCK_ICON);
             }
+
+            // Log permission status at startup to aid debugging.
+            eprintln!(
+                "[permissions] startup: screen recording granted = {}",
+                permissions::has_screen_recording_permission()
+            );
 
             // Build tray menu
             let show_item = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
@@ -166,6 +200,20 @@ pub fn run() {
                     _ => {}
                 })
                 .build(app)?;
+
+            // Open devtools only when explicitly requested via env var,
+            // e.g. `TASKLY_DEVTOOLS=1 pnpm dev`.
+            #[cfg(debug_assertions)]
+            {
+                let want_devtools = std::env::var("TASKLY_DEVTOOLS")
+                    .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE"))
+                    .unwrap_or(false);
+                if want_devtools {
+                    if let Some(window) = app.get_webview_window("main") {
+                        window.open_devtools();
+                    }
+                }
+            }
 
             Ok(())
         })

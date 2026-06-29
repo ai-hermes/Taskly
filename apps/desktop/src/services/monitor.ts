@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { recognizeImage } from "./ocr";
+import { recognizeImage, startOcrEngine } from "./ocr";
 import { OpenAIProvider, OllamaProvider } from "./llm";
 import type { AppConfig, TodoItem, LLMProvider } from "@/types";
 
@@ -16,10 +16,21 @@ export class MonitorService {
   private config: AppConfig;
   private onTodosFound: (todos: TodoItem[]) => void;
   private tickCount = 0;
+  private onOcrText?: (text: string) => void;
+  private onError?: (message: string) => void;
 
-  constructor(config: AppConfig, onTodosFound: (todos: TodoItem[]) => void) {
+  constructor(
+    config: AppConfig,
+    onTodosFound: (todos: TodoItem[]) => void,
+    handlers?: {
+      onOcrText?: (text: string) => void;
+      onError?: (message: string) => void;
+    }
+  ) {
     this.config = config;
     this.onTodosFound = onTodosFound;
+    this.onOcrText = handlers?.onOcrText;
+    this.onError = handlers?.onError;
 
     // Initialize LLM provider
     if (config.llmProvider === "openai" && config.llmConfig.openai) {
@@ -42,12 +53,20 @@ export class MonitorService {
   /**
    * Start periodic monitoring
    */
-  start() {
+  async start() {
     if (this.intervalId) return;
 
     console.info(
-      `[MonitorService] start: interval=${this.config.screenshotInterval}s, provider=${this.config.llmProvider}`
+      "[Monitor] starting; interval=%ds whitelist=%o provider=%s",
+      this.config.screenshotInterval,
+      this.config.whitelist,
+      this.llmProvider.name
     );
+
+    // Fail fast so UI can surface sidecar startup errors.
+    console.info("[Monitor] starting OCR engine sidecar...");
+    await startOcrEngine();
+    console.info("[Monitor] OCR engine ready");
 
     this.intervalId = window.setInterval(
       () => this.tick(),
@@ -74,47 +93,73 @@ export class MonitorService {
    */
   private async tick() {
     const tickId = ++this.tickCount;
+    const startedAt = Date.now();
+    console.debug("[Monitor] tick #%d start", tickId);
     try {
-      console.info(`[MonitorService] tick #${tickId}: begin`);
-
-      // 1. Check if whitelisted app is in foreground
-      const activeWindow = await invoke<string>("get_active_window");
-      const isWhitelisted = await invoke<boolean>("is_whitelisted_app");
-      console.info(
-        `[MonitorService] tick #${tickId}: active="${activeWindow}", whitelisted=${isWhitelisted}`
+      // 1. Check if configured whitelisted app is in foreground
+      const appName = await invoke<string>("get_active_window");
+      const isWhitelisted = this.config.whitelist.some(
+        (name) => name && appName.includes(name)
+      );
+      console.debug(
+        "[Monitor] active window=%o whitelisted=%s (whitelist=%o)",
+        appName,
+        isWhitelisted,
+        this.config.whitelist
       );
       if (!isWhitelisted) {
-        console.info(`[MonitorService] tick #${tickId}: skipped, app is not whitelisted`);
+        console.debug(
+          "[Monitor] skip: front app %o not in whitelist %o",
+          appName,
+          this.config.whitelist
+        );
         return;
       }
 
       // 2. Capture screenshot
       const imagePath = await invoke<string>("capture_screenshot");
+      console.debug("[Monitor] screenshot path=%o", imagePath);
       if (!imagePath) {
-        console.info(`[MonitorService] tick #${tickId}: skipped, no screenshot path`);
+        console.warn("[Monitor] skip: empty screenshot path");
         return;
       }
-      console.info(`[MonitorService] tick #${tickId}: screenshot=${imagePath}`);
 
       // 3. OCR recognition
+      console.debug("[Monitor] running OCR on %s", imagePath);
       const ocrResult = await recognizeImage(imagePath);
-      const ocrText = ocrResult.text.trim();
-      console.info(
-        `[MonitorService] tick #${tickId}: ocr success=${ocrResult.success}, chars=${ocrText.length}`
-      );
-      if (!ocrResult.success || !ocrText) {
-        console.info(`[MonitorService] tick #${tickId}: skipped, OCR returned no text`);
+      if (!ocrResult.success) {
+        console.error("[Monitor] OCR failed: %o", ocrResult.error);
+        if (ocrResult.error) {
+          this.onError?.(ocrResult.error);
+        }
         return;
       }
 
+      const ocrText = ocrResult.text.trim();
+      console.debug(
+        "[Monitor] OCR ok: %d chars, %d lines",
+        ocrText.length,
+        ocrResult.details?.length ?? 0
+      );
+      if (!ocrText) {
+        console.debug("[Monitor] skip: OCR text empty");
+        return;
+      }
+      this.onOcrText?.(ocrText);
+
       // 4. Extract todos via LLM
+      console.debug("[Monitor] extracting todos via %s...", this.llmProvider.name);
       const todos = await this.llmProvider.extractTodos(ocrText);
-      console.info(`[MonitorService] tick #${tickId}: todos=${todos.length}`);
+      console.info("[Monitor] extracted %d todo(s)", todos.length);
       if (todos.length > 0) {
         this.onTodosFound(todos);
       }
     } catch (error) {
-      console.error("[MonitorService] tick error:", error);
+      const message = error instanceof Error ? error.message : String(error);
+      this.onError?.(message);
+      console.error("[Monitor] tick error:", error);
+    } finally {
+      console.debug("[Monitor] tick done in %dms", Date.now() - startedAt);
     }
   }
 }
