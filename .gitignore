@@ -11,14 +11,6 @@ build/
 apps/server/tmp/
 apps/server/bin/
 
-# Python
-packages/ocr-engine/__pycache__/
-packages/ocr-engine/*.egg-info/
-packages/ocr-engine/dist/
-packages/ocr-engine/build/
-packages/ocr-engine/venv/
-packages/ocr-engine/.venv/
-
 # IDE
 .vscode/
 .idea/
@@ -37,6 +29,3 @@ Thumbs.db
 # Tauri
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/gen/
-
-# OCR models (downloaded at runtime)
-packages/ocr-engine/models/

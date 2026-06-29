@@ -1,4 +1,5 @@
 import { useAppState } from "@/store";
+import { Robot, X } from "@phosphor-icons/react";
 
 export function CopilotPanel() {
   const { monitoring, lastOcrText, setCopilotVisible } = useAppState();
@@ -6,16 +7,24 @@ export function CopilotPanel() {
   return (
     <div className="copilot-panel">
       <div className="copilot-header">
-        <span className="copilot-title">🤖 Taskly Copilot</span>
-        <button className="copilot-close" onClick={() => setCopilotVisible(false)}>
-          ✕
+        <span className="copilot-title">
+          <Robot size={16} />
+          Taskly Copilot
+        </span>
+        <button
+          className="copilot-close"
+          onClick={() => setCopilotVisible(false)}
+          type="button"
+          aria-label="关闭 Copilot"
+        >
+          <X size={15} />
         </button>
       </div>
 
       <div className="copilot-body">
         <div className="copilot-status">
           <span className={`status-dot ${monitoring ? "active" : "inactive"}`} />
-          <span>{monitoring ? "监控中..." : "已暂停"}</span>
+          <span>{monitoring ? "监控中…" : "已暂停"}</span>
         </div>
 
         {lastOcrText && (
@@ -27,7 +36,7 @@ export function CopilotPanel() {
 
         {!monitoring && (
           <p className="copilot-hint">
-            点击上方按钮开始监控微信窗口
+            点击“开始监控”后，最近识别的聊天内容会显示在这里。
           </p>
         )}
       </div>

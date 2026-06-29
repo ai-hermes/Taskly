@@ -15,6 +15,7 @@ export class MonitorService {
   private llmProvider: LLMProvider;
   private config: AppConfig;
   private onTodosFound: (todos: TodoItem[]) => void;
+  private tickCount = 0;
 
   constructor(config: AppConfig, onTodosFound: (todos: TodoItem[]) => void) {
     this.config = config;
@@ -24,11 +25,13 @@ export class MonitorService {
     if (config.llmProvider === "openai" && config.llmConfig.openai) {
       this.llmProvider = new OpenAIProvider(
         config.llmConfig.openai.apiKey,
-        config.llmConfig.openai.model
+        config.llmConfig.openai.model,
+        config.llmConfig.openai.baseUrl
       );
     } else if (config.llmConfig.ollama) {
       this.llmProvider = new OllamaProvider(
         config.llmConfig.ollama.baseUrl,
+        config.llmConfig.ollama.apiKey,
         config.llmConfig.ollama.model
       );
     } else {
@@ -41,6 +44,10 @@ export class MonitorService {
    */
   start() {
     if (this.intervalId) return;
+
+    console.info(
+      `[MonitorService] start: interval=${this.config.screenshotInterval}s, provider=${this.config.llmProvider}`
+    );
 
     this.intervalId = window.setInterval(
       () => this.tick(),
@@ -58,6 +65,7 @@ export class MonitorService {
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
+      console.info("[MonitorService] stop");
     }
   }
 
@@ -65,21 +73,43 @@ export class MonitorService {
    * Single monitoring cycle
    */
   private async tick() {
+    const tickId = ++this.tickCount;
     try {
+      console.info(`[MonitorService] tick #${tickId}: begin`);
+
       // 1. Check if whitelisted app is in foreground
+      const activeWindow = await invoke<string>("get_active_window");
       const isWhitelisted = await invoke<boolean>("is_whitelisted_app");
-      if (!isWhitelisted) return;
+      console.info(
+        `[MonitorService] tick #${tickId}: active="${activeWindow}", whitelisted=${isWhitelisted}`
+      );
+      if (!isWhitelisted) {
+        console.info(`[MonitorService] tick #${tickId}: skipped, app is not whitelisted`);
+        return;
+      }
 
       // 2. Capture screenshot
       const imagePath = await invoke<string>("capture_screenshot");
-      if (!imagePath) return;
+      if (!imagePath) {
+        console.info(`[MonitorService] tick #${tickId}: skipped, no screenshot path`);
+        return;
+      }
+      console.info(`[MonitorService] tick #${tickId}: screenshot=${imagePath}`);
 
       // 3. OCR recognition
       const ocrResult = await recognizeImage(imagePath);
-      if (!ocrResult.success || !ocrResult.text.trim()) return;
+      const ocrText = ocrResult.text.trim();
+      console.info(
+        `[MonitorService] tick #${tickId}: ocr success=${ocrResult.success}, chars=${ocrText.length}`
+      );
+      if (!ocrResult.success || !ocrText) {
+        console.info(`[MonitorService] tick #${tickId}: skipped, OCR returned no text`);
+        return;
+      }
 
       // 4. Extract todos via LLM
-      const todos = await this.llmProvider.extractTodos(ocrResult.text);
+      const todos = await this.llmProvider.extractTodos(ocrText);
+      console.info(`[MonitorService] tick #${tickId}: todos=${todos.length}`);
       if (todos.length > 0) {
         this.onTodosFound(todos);
       }

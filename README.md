@@ -16,7 +16,7 @@
 | 模块 | 技术栈 |
 |------|--------|
 | 桌面端 | Tauri 2.x + React + TypeScript |
-| 本地 OCR | PaddleOCR PP-OCRv4 (Python Sidecar) |
+| 本地 OCR | rust-paddle-ocr + MNN runtime |
 | 大模型 | 可配置 (OpenAI / Ollama) |
 | 后端 | Go + Gin + PostgreSQL |
 
@@ -26,9 +26,8 @@
 Taskly/
 ├── apps/
 │   ├── desktop/          # Tauri 桌面应用
+│   │   └── src-tauri/models/ # OCR runtime models
 │   └── server/           # Go 后端服务
-├── packages/
-│   └── ocr-engine/       # PaddleOCR Sidecar
 └── docs/                 # 文档
 ```
 

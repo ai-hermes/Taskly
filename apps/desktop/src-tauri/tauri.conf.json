@@ -18,11 +18,12 @@
         "height": 640,
         "resizable": true,
         "decorations": true,
-        "center": true
+        "center": true,
+        "visible": false
       }
     ],
     "trayIcon": {
-      "iconPath": "icons/icon.png",
+      "iconPath": "icons/trayTemplate.png",
       "iconAsTemplate": true
     },
     "security": {
@@ -39,13 +40,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": ["models"],
     "macOS": {
       "minimumSystemVersion": "13.0"
-    }
-  },
-  "plugins": {
-    "shell": {
-      "open": true
     }
   }
 }
