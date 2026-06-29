@@ -19,11 +19,11 @@
         "resizable": true,
         "decorations": true,
         "center": true,
-        "visible": false
+        "visible": true
       }
     ],
     "trayIcon": {
-      "iconPath": "icons/trayTemplate.png",
+      "iconPath": "icons/trayIcon.png",
       "iconAsTemplate": true
     },
     "security": {

@@ -5,8 +5,28 @@ mod window_monitor;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Manager, WebviewUrl, WebviewWindowBuilder,
+    Manager, RunEvent, WebviewUrl, WebviewWindowBuilder,
 };
+
+const TRAY_ICON: tauri::image::Image<'_> = tauri::include_image!("./icons/trayIcon.png");
+const DOCK_ICON: tauri::image::Image<'_> = tauri::include_image!("./icons/app-icon-1024.png");
+const DOCK_ICON_PNG: &[u8] = include_bytes!("../icons/app-icon-1024.png");
+
+#[cfg(target_os = "macos")]
+fn set_macos_dock_icon() {
+    use objc2::{AllocAnyThread, MainThreadMarker};
+    use objc2_app_kit::{NSApplication, NSImage};
+    use objc2_foundation::NSData;
+
+    let mtm = unsafe { MainThreadMarker::new_unchecked() };
+    let app = NSApplication::sharedApplication(mtm);
+    let data = NSData::with_bytes(DOCK_ICON_PNG);
+    let app_icon = NSImage::initWithData(NSImage::alloc(), &data).expect("creating dock icon");
+    unsafe { app.setApplicationIconImage(Some(&app_icon)) };
+}
+
+#[cfg(not(target_os = "macos"))]
+fn set_macos_dock_icon() {}
 
 #[tauri::command]
 async fn capture_screenshot(_app: tauri::AppHandle) -> Result<String, String> {
@@ -112,6 +132,10 @@ pub fn run() {
             set_debugger_console,
         ])
         .setup(|app| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_icon(DOCK_ICON);
+            }
+
             // Build tray menu
             let show_item = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
             let widget_item = MenuItem::with_id(app, "widget", "显示 Widget", true, None::<&str>)?;
@@ -119,6 +143,8 @@ pub fn run() {
             let menu = Menu::with_items(app, &[&show_item, &widget_item, &quit_item])?;
 
             TrayIconBuilder::new()
+                .icon(TRAY_ICON)
+                .icon_as_template(true)
                 .menu(&menu)
                 .tooltip("Taskly - 智能待办管理")
                 .on_menu_event(|app, event| match event.id.as_ref() {
@@ -143,6 +169,11 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, event| {
+            if matches!(event, RunEvent::Ready) {
+                set_macos_dock_icon();
+            }
+        });
 }
