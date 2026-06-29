@@ -1,6 +1,6 @@
 use std::{
     path::{Path, PathBuf},
-    sync::{Mutex, OnceLock},
+    sync::Mutex,
 };
 
 use ocr_rs::{OcrEngine, OcrEngineConfig};
@@ -23,7 +23,7 @@ pub struct OcrText {
     pub box_: Vec<Vec<f32>>,
 }
 
-static OCR_ENGINE: OnceLock<Mutex<OcrEngine>> = OnceLock::new();
+static OCR_ENGINE: Mutex<Option<OcrEngine>> = Mutex::new(None);
 
 pub fn recognize_image(app: &AppHandle, image_path: &str) -> Result<OcrResponse, String> {
     let image_path = Path::new(image_path);
@@ -34,15 +34,44 @@ pub fn recognize_image(app: &AppHandle, image_path: &str) -> Result<OcrResponse,
         )));
     }
 
-    let models_dir = resolve_models_dir(app)?;
-    let engine = get_or_init_engine(&models_dir)?;
-    let image = image::open(image_path).map_err(|e| format!("Failed to open image: {}", e))?;
+    let models_dir = match resolve_models_dir(app) {
+        Ok(dir) => dir,
+        Err(error) => return Ok(OcrResponse::error(error)),
+    };
+    let image = match image::open(image_path) {
+        Ok(image) => image,
+        Err(error) => {
+            return Ok(OcrResponse::error(format!(
+                "Failed to open image: {}",
+                error
+            )));
+        }
+    };
 
-    let results = engine
-        .lock()
-        .map_err(|_| "OCR engine lock poisoned".to_string())?
-        .recognize(&image)
-        .map_err(|e| format!("OCR recognition failed: {}", e))?;
+    let mut engine_lock = match OCR_ENGINE.lock() {
+        Ok(lock) => lock,
+        Err(_) => return Ok(OcrResponse::error("OCR engine lock poisoned".to_string())),
+    };
+
+    if engine_lock.is_none() {
+        match create_engine(&models_dir) {
+            Ok(engine) => *engine_lock = Some(engine),
+            Err(error) => return Ok(OcrResponse::error(error)),
+        }
+    }
+
+    let Some(engine) = engine_lock.as_mut() else {
+        return Ok(OcrResponse::error("Failed to cache OCR engine".to_string()));
+    };
+    let results = match engine.recognize(&image) {
+        Ok(results) => results,
+        Err(error) => {
+            return Ok(OcrResponse::error(format!(
+                "OCR recognition failed: {}",
+                error
+            )));
+        }
+    };
 
     let details: Vec<OcrText> = results
         .into_iter()
@@ -66,11 +95,7 @@ pub fn recognize_image(app: &AppHandle, image_path: &str) -> Result<OcrResponse,
     })
 }
 
-fn get_or_init_engine(models_dir: &Path) -> Result<&'static Mutex<OcrEngine>, String> {
-    if let Some(engine) = OCR_ENGINE.get() {
-        return Ok(engine);
-    }
-
+fn create_engine(models_dir: &Path) -> Result<OcrEngine, String> {
     let det_model = models_dir.join("PP-OCRv6_small_det.mnn");
     let rec_model = models_dir.join("PP-OCRv6_small_rec.mnn");
     let charset = models_dir.join("ppocr_keys_v6_small.txt");
@@ -81,13 +106,8 @@ fn get_or_init_engine(models_dir: &Path) -> Result<&'static Mutex<OcrEngine>, St
     }
 
     let config = OcrEngineConfig::fast().with_min_result_confidence(0.45);
-    let engine = OcrEngine::new(det_model, rec_model, charset, Some(config))
-        .map_err(|e| format!("Failed to initialize OCR engine: {}", e))?;
-    let _ = OCR_ENGINE.set(Mutex::new(engine));
-
-    OCR_ENGINE
-        .get()
-        .ok_or_else(|| "Failed to cache OCR engine".to_string())
+    OcrEngine::new(det_model, rec_model, charset, Some(config))
+        .map_err(|e| format!("Failed to initialize OCR engine: {}", e))
 }
 
 fn resolve_models_dir(app: &AppHandle) -> Result<PathBuf, String> {

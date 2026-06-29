@@ -51,7 +51,9 @@ pub fn capture_focused_window() -> Result<String, Box<dyn std::error::Error>> {
         }
         Ok(_) => {
             eprintln!("[screenshot] WARNING: screenshot file is empty (check Screen Recording permission)");
-            return Err("Screenshot file empty; grant Screen Recording permission to Taskly".into());
+            return Err(
+                "Screenshot file empty; grant Screen Recording permission to Taskly".into(),
+            );
         }
         Err(e) => {
             eprintln!("[screenshot] WARNING: screenshot file missing: {}", e);
