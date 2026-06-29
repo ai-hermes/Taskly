@@ -15,7 +15,6 @@ pub fn capture_focused_window() -> Result<String, Box<dyn std::error::Error>> {
     let filepath_str = filepath
         .to_str()
         .ok_or("Invalid temporary path for screenshot")?;
-
     let app_name = crate::window_monitor::get_frontmost_app().unwrap_or_default();
     let window_id = frontmost_window_cg_id(&app_name);
     eprintln!(
@@ -52,7 +51,9 @@ pub fn capture_focused_window() -> Result<String, Box<dyn std::error::Error>> {
         }
         Ok(_) => {
             eprintln!("[screenshot] WARNING: screenshot file is empty (check Screen Recording permission)");
-            return Err("Screenshot file empty; grant Screen Recording permission to Taskly".into());
+            return Err(
+                "Screenshot file empty; grant Screen Recording permission to Taskly".into(),
+            );
         }
         Err(e) => {
             eprintln!("[screenshot] WARNING: screenshot file missing: {}", e);

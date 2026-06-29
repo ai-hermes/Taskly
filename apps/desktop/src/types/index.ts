@@ -32,9 +32,11 @@ export interface AppConfig {
   screenshotInterval: number; // seconds
   llmProvider: "openai" | "ollama";
   llmConfig: {
-    openai?: { apiKey: string; model: string };
-    ollama?: { baseUrl: string; model: string };
+    openai?: { baseUrl: string; apiKey: string; model: string };
+    ollama?: { baseUrl: string; apiKey: string; model: string };
   };
   syncEnabled: boolean;
   serverUrl: string;
+  startupOpenMainWindow: boolean;
+  debuggerConsoleEnabled: boolean;
 }

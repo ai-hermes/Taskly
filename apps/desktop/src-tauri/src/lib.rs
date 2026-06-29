@@ -1,3 +1,4 @@
+mod ocr;
 mod permissions;
 mod screenshot;
 mod window_monitor;
@@ -5,13 +6,32 @@ mod window_monitor;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Manager, WebviewUrl, WebviewWindowBuilder,
+    Manager, RunEvent, WebviewUrl, WebviewWindowBuilder,
 };
+
+const TRAY_ICON: tauri::image::Image<'_> = tauri::include_image!("./icons/trayIcon.png");
+const DOCK_ICON: tauri::image::Image<'_> = tauri::include_image!("./icons/app-icon-1024.png");
+const DOCK_ICON_PNG: &[u8] = include_bytes!("../icons/app-icon-1024.png");
+
+#[cfg(target_os = "macos")]
+fn set_macos_dock_icon() {
+    use objc2::{AllocAnyThread, MainThreadMarker};
+    use objc2_app_kit::{NSApplication, NSImage};
+    use objc2_foundation::NSData;
+
+    let mtm = unsafe { MainThreadMarker::new_unchecked() };
+    let app = NSApplication::sharedApplication(mtm);
+    let data = NSData::with_bytes(DOCK_ICON_PNG);
+    let app_icon = NSImage::initWithData(NSImage::alloc(), &data).expect("creating dock icon");
+    unsafe { app.setApplicationIconImage(Some(&app_icon)) };
+}
+
+#[cfg(not(target_os = "macos"))]
+fn set_macos_dock_icon() {}
 
 #[tauri::command]
 async fn capture_screenshot(_app: tauri::AppHandle) -> Result<String, String> {
-    screenshot::capture_focused_window()
-        .map_err(|e| format!("Screenshot failed: {}", e))
+    screenshot::capture_focused_window().map_err(|e| format!("Screenshot failed: {}", e))
 }
 
 #[tauri::command]
@@ -39,8 +59,7 @@ fn open_screen_recording_settings() -> Result<(), String> {
 
 #[tauri::command]
 async fn get_active_window() -> Result<String, String> {
-    window_monitor::get_frontmost_app()
-        .map_err(|e| format!("Failed to get active window: {}", e))
+    window_monitor::get_frontmost_app().map_err(|e| format!("Failed to get active window: {}", e))
 }
 
 #[tauri::command]
@@ -48,6 +67,16 @@ async fn is_whitelisted_app() -> Result<bool, String> {
     let app_name = window_monitor::get_frontmost_app()
         .map_err(|e| format!("Failed to get active window: {}", e))?;
     Ok(window_monitor::is_whitelisted(&app_name))
+}
+
+#[tauri::command]
+async fn recognize_image(
+    app: tauri::AppHandle,
+    image_path: String,
+) -> Result<ocr::OcrResponse, String> {
+    tauri::async_runtime::spawn_blocking(move || ocr::recognize_image(&app, &image_path))
+        .await
+        .map_err(|e| format!("OCR task failed: {}", e))?
 }
 
 #[tauri::command]
@@ -77,6 +106,41 @@ async fn close_widget_window(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+        Ok(())
+    } else {
+        Err("Main window not found".into())
+    }
+}
+
+#[tauri::command]
+async fn set_debugger_console(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    #[cfg(debug_assertions)]
+    {
+        if let Some(window) = app.get_webview_window("main") {
+            if enabled {
+                window.open_devtools();
+            } else {
+                window.close_devtools();
+            }
+            Ok(())
+        } else {
+            Err("Main window not found".into())
+        }
+    }
+
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = app;
+        let _ = enabled;
+        Ok(())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -86,13 +150,20 @@ pub fn run() {
             capture_screenshot,
             get_active_window,
             is_whitelisted_app,
+            recognize_image,
             open_widget_window,
             close_widget_window,
+            show_main_window,
+            set_debugger_console,
             check_screen_recording_permission,
             request_screen_recording_permission,
             open_screen_recording_settings,
         ])
         .setup(|app| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_icon(DOCK_ICON);
+            }
+
             // Log permission status at startup to aid debugging.
             eprintln!(
                 "[permissions] startup: screen recording granted = {}",
@@ -106,6 +177,8 @@ pub fn run() {
             let menu = Menu::with_items(app, &[&show_item, &widget_item, &quit_item])?;
 
             TrayIconBuilder::new()
+                .icon(TRAY_ICON)
+                .icon_as_template(true)
                 .menu(&menu)
                 .tooltip("Taskly - 智能待办管理")
                 .on_menu_event(|app, event| match event.id.as_ref() {
@@ -144,6 +217,11 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, event| {
+            if matches!(event, RunEvent::Ready) {
+                set_macos_dock_icon();
+            }
+        });
 }

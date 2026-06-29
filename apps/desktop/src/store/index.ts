@@ -39,11 +39,21 @@ const defaultConfig: AppConfig = {
   screenshotInterval: 30,
   llmProvider: "ollama",
   llmConfig: {
-    openai: { apiKey: "", model: "gpt-4o-mini" },
-    ollama: { baseUrl: "http://localhost:11434", model: "qwen2.5:7b" },
+    openai: {
+      baseUrl: "https://api.openai.com/v1",
+      apiKey: "",
+      model: "gpt-4o-mini",
+    },
+    ollama: {
+      baseUrl: "http://localhost:11434",
+      apiKey: "",
+      model: "qwen2.5:7b",
+    },
   },
   syncEnabled: false,
   serverUrl: "http://localhost:8080",
+  startupOpenMainWindow: false,
+  debuggerConsoleEnabled: false,
 };
 
 export const useConfigStore = create<ConfigStore>((set) => ({

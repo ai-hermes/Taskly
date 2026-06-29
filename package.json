@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "pnpm --filter @taskly/desktop tauri dev",
     "build": "pnpm --filter @taskly/desktop tauri build",
+    "icons": "swift scripts/generate-icons.swift && pnpm --filter @taskly/desktop exec tauri icon src-tauri/icons/app-icon-1024.png",
     "dev:web": "pnpm --filter @taskly/desktop dev",
     "dev:server": "cd apps/server && go run cmd/server/main.go"
   }

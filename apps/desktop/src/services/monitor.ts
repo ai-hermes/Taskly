@@ -15,6 +15,7 @@ export class MonitorService {
   private llmProvider: LLMProvider;
   private config: AppConfig;
   private onTodosFound: (todos: TodoItem[]) => void;
+  private tickCount = 0;
   private onOcrText?: (text: string) => void;
   private onError?: (message: string) => void;
 
@@ -35,11 +36,13 @@ export class MonitorService {
     if (config.llmProvider === "openai" && config.llmConfig.openai) {
       this.llmProvider = new OpenAIProvider(
         config.llmConfig.openai.apiKey,
-        config.llmConfig.openai.model
+        config.llmConfig.openai.model,
+        config.llmConfig.openai.baseUrl
       );
     } else if (config.llmConfig.ollama) {
       this.llmProvider = new OllamaProvider(
         config.llmConfig.ollama.baseUrl,
+        config.llmConfig.ollama.apiKey,
         config.llmConfig.ollama.model
       );
     } else {
@@ -81,6 +84,7 @@ export class MonitorService {
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
+      console.info("[MonitorService] stop");
     }
   }
 
@@ -88,8 +92,9 @@ export class MonitorService {
    * Single monitoring cycle
    */
   private async tick() {
+    const tickId = ++this.tickCount;
     const startedAt = Date.now();
-    console.debug("[Monitor] tick start");
+    console.debug("[Monitor] tick #%d start", tickId);
     try {
       // 1. Check if configured whitelisted app is in foreground
       const appName = await invoke<string>("get_active_window");
