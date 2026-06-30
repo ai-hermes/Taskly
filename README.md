@@ -5,7 +5,7 @@
 ## 功能特性
 
 - 🖥️ **智能截图** - 监控白名单应用（微信），自动截图
-- 🔍 **本地 OCR** - PaddleOCR 本地识别，数据不出设备
+- 🔍 **本地 OCR** - ocr-rs 本地识别，数据不出设备
 - 🤖 **AI 提取** - 大模型从聊天文本中提取结构化待办
 - 📋 **桌面 Widget** - 待办事项桌面小组件，一目了然
 - 💬 **桌面 Copilot** - 悬浮助手窗口，实时显示识别状态
@@ -39,18 +39,12 @@ Taskly/
 - pnpm >= 8
 - Rust (latest stable)
 - Go >= 1.21
-- Python 3.9 - 3.12（推荐 3.11）
 
 ### 快速开始
 
 ```bash
 # 安装依赖
 pnpm install
-
-# 首次本地开发需构建 OCR sidecar（macOS）
-OCR_PYTHON=python3.11 bash packages/ocr-engine/build.sh
-mkdir -p apps/desktop/src-tauri/binaries
-cp packages/ocr-engine/dist/ocr-engine apps/desktop/src-tauri/binaries/ocr-engine-aarch64-apple-darwin
 
 # 启动桌面应用（开发模式）
 pnpm dev
@@ -60,6 +54,8 @@ pnpm dev:server
 ```
 
 > 提示：默认使用 Ollama，本地需有可用模型（如 `qwen2.5:7b`）；并且 macOS 需要给 Taskly 授予「屏幕录制」与「辅助功能」权限，否则无法截图/识别。
+
+OCR 使用内置 Rust 命令直接调用 `ocr-rs`，模型文件位于 `apps/desktop/src-tauri/models/`，不需要构建 Python sidecar。
 
 ## 隐私说明
 

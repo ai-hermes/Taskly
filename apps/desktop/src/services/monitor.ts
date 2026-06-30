@@ -63,8 +63,8 @@ export class MonitorService {
       this.llmProvider.name
     );
 
-    // Fail fast so UI can surface sidecar startup errors.
-    console.info("[Monitor] starting OCR engine sidecar...");
+    // Touch the OCR service once so the UI can report the active backend.
+    console.info("[Monitor] preparing OCR engine...");
     await startOcrEngine();
     console.info("[Monitor] OCR engine ready");
 

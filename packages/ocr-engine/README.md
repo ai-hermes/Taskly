@@ -1,6 +1,6 @@
-# OCR Engine - Taskly Sidecar
+# Legacy OCR Engine - Taskly Sidecar
 
-基于 PaddleOCR 的本地 OCR 引擎，作为 Tauri sidecar 运行。
+这是旧版 PaddleOCR sidecar，仅保留作历史参考。桌面端当前已经切换到 Rust 侧的 `ocr-rs` 实现，前端通过 Tauri `recognize_image` 命令调用，不再启动本目录下的 Python 程序或打包 `binaries/ocr-engine`。
 
 ## 通信协议
 
