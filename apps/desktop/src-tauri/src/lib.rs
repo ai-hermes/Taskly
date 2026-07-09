@@ -6,7 +6,7 @@ mod window_monitor;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent,
+    Manager, RunEvent, WindowEvent,
 };
 
 const TRAY_ICON: tauri::image::Image<'_> = tauri::include_image!("./icons/trayIcon.png");
@@ -90,33 +90,6 @@ async fn recognize_image(
 }
 
 #[tauri::command]
-async fn open_widget_window(app: tauri::AppHandle) -> Result<(), String> {
-    if app.get_webview_window("widget").is_some() {
-        return Ok(());
-    }
-
-    WebviewWindowBuilder::new(&app, "widget", WebviewUrl::App("/widget".into()))
-        .title("Taskly Widget")
-        .inner_size(240.0, 300.0)
-        .decorations(false)
-        .always_on_top(true)
-        .resizable(false)
-        .skip_taskbar(true)
-        .build()
-        .map_err(|e| format!("Failed to create widget window: {}", e))?;
-
-    Ok(())
-}
-
-#[tauri::command]
-async fn close_widget_window(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("widget") {
-        window.close().map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-#[tauri::command]
 async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
         window.show().map_err(|e| e.to_string())?;
@@ -155,14 +128,13 @@ async fn set_debugger_console(app: tauri::AppHandle, enabled: bool) -> Result<()
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             capture_screenshot,
             get_active_window,
             is_whitelisted_app,
             list_running_apps,
             recognize_image,
-            open_widget_window,
-            close_widget_window,
             show_main_window,
             set_debugger_console,
             check_screen_recording_permission,
@@ -192,9 +164,8 @@ pub fn run() {
 
             // Build tray menu
             let show_item = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
-            let widget_item = MenuItem::with_id(app, "widget", "显示 Widget", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_item, &widget_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
             TrayIconBuilder::new()
                 .icon(TRAY_ICON)
@@ -207,12 +178,6 @@ pub fn run() {
                             let _ = window.show();
                             let _ = window.set_focus();
                         }
-                    }
-                    "widget" => {
-                        let app_handle = app.clone();
-                        tauri::async_runtime::spawn(async move {
-                            let _ = open_widget_window(app_handle).await;
-                        });
                     }
                     "quit" => {
                         app.exit(0);

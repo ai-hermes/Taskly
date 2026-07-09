@@ -43,3 +43,14 @@ export async function loadTombstones(): Promise<Tombstone[]> {
   const tombstones = await s.get<Tombstone[]>("tombstones");
   return tombstones || [];
 }
+
+export async function saveNotifiedReminders(ids: string[]): Promise<void> {
+  const s = await getStore();
+  await s.set("notifiedReminders", ids);
+}
+
+export async function loadNotifiedReminders(): Promise<string[]> {
+  const s = await getStore();
+  const ids = await s.get<string[]>("notifiedReminders");
+  return ids || [];
+}

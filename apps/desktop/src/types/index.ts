@@ -50,4 +50,6 @@ export interface AppConfig {
   debuggerConsoleEnabled: boolean;
   /** Minutes to block re-detection of a deleted todo (0 disables tombstones). */
   dedupTombstoneTtlMinutes: number;
+  /** Whether to fire a system notification when a todo's dueDate arrives. */
+  remindersEnabled: boolean;
 }

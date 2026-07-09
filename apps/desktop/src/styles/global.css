@@ -343,8 +343,7 @@ select:focus-visible {
   cursor: pointer;
 }
 
-.todo-check input,
-.widget-check input {
+.todo-check input {
   position: absolute;
   opacity: 0;
   pointer-events: none;
@@ -370,7 +369,6 @@ select:focus-visible {
 }
 
 .todo-check input:focus-visible + span,
-.widget-check input:focus-visible + span,
 .switch-field input:focus-visible + .switch-track {
   box-shadow: var(--focus-ring);
 }
@@ -1044,109 +1042,6 @@ select:focus-visible {
 .app-picker-item.selected {
   color: var(--accent);
   font-weight: 500;
-}
-
-.widget-container {
-  width: 240px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-popover);
-}
-
-.widget-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
-  color: var(--text-primary);
-  cursor: move;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.widget-count {
-  min-width: 22px;
-  height: 22px;
-  padding: 0 7px;
-  border-radius: 9999px;
-  background: var(--text-primary);
-  color: var(--surface);
-  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  line-height: 22px;
-  text-align: center;
-}
-
-.widget-body {
-  padding: 8px;
-}
-
-.widget-empty {
-  margin: 0;
-  padding: 18px 8px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  text-align: center;
-}
-
-.widget-list {
-  display: grid;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.widget-list li {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  min-height: 32px;
-  padding: 6px;
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: 13px;
-}
-
-.widget-list li:hover {
-  background: var(--surface-subtle);
-}
-
-.widget-list li > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.widget-check {
-  position: relative;
-  display: inline-flex;
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-.widget-check span {
-  display: inline-flex;
-  width: 16px;
-  height: 16px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--gray-500);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: transparent;
-}
-
-.widget-check input:checked + span {
-  border-color: var(--text-primary);
-  background: var(--text-primary);
-  color: var(--surface);
 }
 
 @media (max-width: 400px) {

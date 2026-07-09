@@ -1,11 +1,20 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { TodoList } from "@/components/TodoList";
 import { Settings } from "@/components/Settings";
 import { CopilotPanel } from "@/components/CopilotPanel";
 import { PermissionGuide } from "@/components/PermissionGuide";
 import { useTodoStore, useConfigStore, useAppState } from "@/store";
 import { MonitorService } from "@/services/monitor";
-import { loadConfig, loadTodos, saveTodos, loadTombstones, saveTombstones } from "@/services/storage";
+import { ReminderService } from "@/services/reminder";
+import {
+  loadConfig,
+  loadTodos,
+  saveTodos,
+  loadTombstones,
+  saveTombstones,
+  loadNotifiedReminders,
+  saveNotifiedReminders,
+} from "@/services/storage";
 import { setDebuggerConsole } from "@/services/debugger";
 import { showMainWindow } from "@/services/window";
 import { checkScreenRecordingPermission } from "@/services/permissions";
@@ -38,6 +47,7 @@ function App() {
     setLastMonitorError,
   } = useAppState();
   const [monitor, setMonitor] = useState<MonitorService | null>(null);
+  const reminderRef = useRef<ReminderService | null>(null);
 
   // Load saved todos on startup
   useEffect(() => {
@@ -99,6 +109,41 @@ function App() {
       monitor?.stop();
     };
   }, [monitor]);
+
+  // Reminder service: fire system notifications when todos become due.
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    if (!config.remindersEnabled) {
+      reminderRef.current?.stop();
+      reminderRef.current = null;
+      return;
+    }
+
+    let cancelled = false;
+    loadNotifiedReminders()
+      .then((notified) => {
+        if (cancelled) return;
+        const svc = new ReminderService(
+          () => useTodoStore.getState().todos,
+          notified,
+          (ids) => {
+            saveNotifiedReminders(ids).catch((err) =>
+              console.error("Failed to save reminder state:", err)
+            );
+          }
+        );
+        reminderRef.current = svc;
+        svc.start().catch((err) => console.error("Failed to start reminders:", err));
+      })
+      .catch((err) => console.error("Failed to load reminder state:", err));
+
+    return () => {
+      cancelled = true;
+      reminderRef.current?.stop();
+      reminderRef.current = null;
+    };
+  }, [isLoaded, config.remindersEnabled]);
 
   // Handle new todos found by monitor
   const handleTodosFound = useCallback(

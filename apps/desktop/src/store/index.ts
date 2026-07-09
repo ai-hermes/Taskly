@@ -99,6 +99,7 @@ const defaultConfig: AppConfig = {
   startupOpenMainWindow: false,
   debuggerConsoleEnabled: false,
   dedupTombstoneTtlMinutes: 30,
+  remindersEnabled: true,
 };
 
 export const useConfigStore = create<ConfigStore>((set) => ({

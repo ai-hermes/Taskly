@@ -150,6 +150,18 @@ export function Settings({ onClose }: { onClose: () => void }) {
               单位为分钟。删除的待办在此时长内不会被重复识别加入；0 表示关闭该拦截。
             </small>
           </label>
+          <label className="switch-field">
+            <span>
+              <strong>到期提醒</strong>
+              <small>默认开启。待办到达截止时间时弹出系统通知。</small>
+            </span>
+            <input
+              type="checkbox"
+              checked={local.remindersEnabled}
+              onChange={(e) => setLocal({ ...local, remindersEnabled: e.target.checked })}
+            />
+            <span className="switch-track" aria-hidden="true" />
+          </label>
           <div className="field">
             <span>白名单应用</span>
             <div className="whitelist-chips">
