@@ -2746,8 +2746,9 @@ dependencies = [
 
 [[package]]
 name = "ocr-rs"
-version = "2.3.1"
-source = "git+https://github.com/zibo-chen/rust-paddle-ocr#15dbc493cc4f6e8f186223cd2a814996aadcd0cd"
+version = "2.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8458bd1acd3e03fc880410818ea7c993430c6322892ebcf2fc1e0d681ba86387"
 dependencies = [
  "bindgen",
  "cc",

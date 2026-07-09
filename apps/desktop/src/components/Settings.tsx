@@ -2,12 +2,18 @@ import { useState } from "react";
 import { useConfigStore } from "@/store";
 import { saveConfig } from "@/services/storage";
 import { setDebuggerConsole } from "@/services/debugger";
+import { listRunningApps, getActiveWindow } from "@/services/window";
 import type { AppConfig } from "@/types";
-import { X } from "@phosphor-icons/react";
+import { X, Check, ArrowClockwise } from "@phosphor-icons/react";
 
 export function Settings({ onClose }: { onClose: () => void }) {
   const { config, updateConfig } = useConfigStore();
   const [local, setLocal] = useState<AppConfig>({ ...config });
+  const [runningApps, setRunningApps] = useState<string[]>([]);
+  const [showPicker, setShowPicker] = useState(false);
+  const [loadingApps, setLoadingApps] = useState(false);
+  const [appsError, setAppsError] = useState<string | null>(null);
+  const [manualInput, setManualInput] = useState("");
   const openaiConfig = local.llmConfig.openai || {
     baseUrl: "https://api.openai.com/v1",
     apiKey: "",
@@ -48,6 +54,56 @@ export function Settings({ onClose }: { onClose: () => void }) {
     });
   };
 
+  const setWhitelist = (next: string[]) => {
+    const cleaned = Array.from(
+      new Set(next.map((s) => s.trim()).filter(Boolean))
+    );
+    setLocal((prev) => ({ ...prev, whitelist: cleaned }));
+  };
+
+  const addApp = (name: string) => setWhitelist([...local.whitelist, name]);
+  const removeApp = (name: string) =>
+    setWhitelist(local.whitelist.filter((n) => n !== name));
+
+  const loadRunningApps = async () => {
+    setLoadingApps(true);
+    setAppsError(null);
+    try {
+      setRunningApps(await listRunningApps());
+    } catch (err) {
+      console.error("Failed to list running apps:", err);
+      setAppsError("获取运行中的应用失败，请确认已授予辅助功能权限。");
+    } finally {
+      setLoadingApps(false);
+    }
+  };
+
+  const togglePicker = () => {
+    const next = !showPicker;
+    setShowPicker(next);
+    if (next && runningApps.length === 0) {
+      void loadRunningApps();
+    }
+  };
+
+  const addCurrentApp = async () => {
+    try {
+      const name = (await getActiveWindow()).trim();
+      if (name) addApp(name);
+    } catch (err) {
+      console.error("Failed to get active window:", err);
+      setAppsError("获取当前前台应用失败。");
+    }
+  };
+
+  const addManual = () => {
+    const value = manualInput.trim();
+    if (value) {
+      addApp(value);
+      setManualInput("");
+    }
+  };
+
   return (
     <div
       className="settings-panel"
@@ -81,20 +137,101 @@ export function Settings({ onClose }: { onClose: () => void }) {
             />
             <small>单位为秒，建议保持在 15 秒以上。</small>
           </label>
-          <label className="field">
+          <div className="field">
             <span>白名单应用</span>
-            <input
-              type="text"
-              value={local.whitelist.join(", ")}
-              onChange={(e) =>
-                setLocal({
-                  ...local,
-                  whitelist: e.target.value.split(",").map((s) => s.trim()),
-                })
-              }
-            />
-            <small>使用英文逗号分隔应用名，仅前台匹配时截图。</small>
-          </label>
+            <div className="whitelist-chips">
+              {local.whitelist.length === 0 ? (
+                <span className="whitelist-empty">
+                  未添加应用，将使用默认（微信）
+                </span>
+              ) : (
+                local.whitelist.map((name) => (
+                  <span className="whitelist-chip" key={name}>
+                    {name}
+                    <button
+                      type="button"
+                      className="whitelist-chip-remove"
+                      aria-label={`移除 ${name}`}
+                      onClick={() => removeApp(name)}
+                    >
+                      <X size={12} weight="bold" />
+                    </button>
+                  </span>
+                ))
+              )}
+            </div>
+            <div className="whitelist-actions">
+              <input
+                type="text"
+                placeholder="手动输入应用名，回车添加"
+                value={manualInput}
+                onChange={(e) => setManualInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addManual();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={togglePicker}
+              >
+                {showPicker ? "收起列表" : "选择运行中的应用"}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={addCurrentApp}
+              >
+                添加当前前台应用
+              </button>
+            </div>
+            {showPicker && (
+              <div className="app-picker">
+                <div className="app-picker-header">
+                  <span>运行中的应用</span>
+                  <button
+                    type="button"
+                    className="app-picker-refresh"
+                    aria-label="刷新列表"
+                    onClick={() => void loadRunningApps()}
+                    disabled={loadingApps}
+                  >
+                    <ArrowClockwise size={14} />
+                  </button>
+                </div>
+                {loadingApps ? (
+                  <div className="app-picker-empty">正在获取运行中的应用…</div>
+                ) : appsError ? (
+                  <div className="app-picker-empty">{appsError}</div>
+                ) : runningApps.length === 0 ? (
+                  <div className="app-picker-empty">未获取到运行中的应用</div>
+                ) : (
+                  <div className="app-picker-list">
+                    {runningApps.map((name) => {
+                      const selected = local.whitelist.includes(name);
+                      return (
+                        <button
+                          type="button"
+                          key={name}
+                          className={`app-picker-item${selected ? " selected" : ""}`}
+                          onClick={() =>
+                            selected ? removeApp(name) : addApp(name)
+                          }
+                        >
+                          <span>{name}</span>
+                          {selected && <Check size={14} weight="bold" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+            <small>仅当白名单应用在前台时才截图。可手动输入或从运行中的应用选择。</small>
+          </div>
         </section>
 
         <section className="settings-section">

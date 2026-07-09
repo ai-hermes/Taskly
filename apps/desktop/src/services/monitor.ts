@@ -117,7 +117,9 @@ export class MonitorService {
       }
 
       // 2. Capture screenshot
-      const imagePath = await invoke<string>("capture_screenshot");
+      const imagePath = await invoke<string>("capture_screenshot", {
+        whitelist: this.config.whitelist,
+      });
       console.debug("[Monitor] screenshot path=%o", imagePath);
       if (!imagePath) {
         console.warn("[Monitor] skip: empty screenshot path");

@@ -7,7 +7,7 @@ use std::process::Command;
 /// it to `screencapture -l`, so only that single window is captured instead of
 /// the whole desktop. Capturing the whole screen produced very noisy OCR output
 /// (file trees, editors, dev tools, etc.).
-pub fn capture_focused_window() -> Result<String, Box<dyn std::error::Error>> {
+pub fn capture_focused_window(whitelist: &[String]) -> Result<String, Box<dyn std::error::Error>> {
     let temp_dir = std::env::temp_dir();
     let filename = format!("taskly_screenshot_{}.png", chrono_timestamp());
     let filepath = temp_dir.join(&filename);
@@ -16,7 +16,7 @@ pub fn capture_focused_window() -> Result<String, Box<dyn std::error::Error>> {
         .to_str()
         .ok_or("Invalid temporary path for screenshot")?;
     let app_name = crate::window_monitor::get_frontmost_app().unwrap_or_default();
-    let window_id = frontmost_window_cg_id(&app_name);
+    let window_id = frontmost_window_cg_id(&app_name, whitelist);
     eprintln!(
         "[screenshot] frontmost app={:?} cg_window_id={:?} -> {}",
         app_name, window_id, filepath_str
@@ -67,7 +67,7 @@ pub fn capture_focused_window() -> Result<String, Box<dyn std::error::Error>> {
 /// Find the CoreGraphics window number of the frontmost on-screen window that
 /// belongs to a whitelisted (monitored) app. Returns `None` if none is found.
 #[cfg(target_os = "macos")]
-fn frontmost_window_cg_id(_app_name: &str) -> Option<i64> {
+fn frontmost_window_cg_id(_app_name: &str, whitelist: &[String]) -> Option<i64> {
     use std::ffi::{c_void, CStr};
 
     type CFRef = *const c_void;
@@ -158,7 +158,7 @@ fn frontmost_window_cg_id(_app_name: &str) -> Option<i64> {
                 continue;
             }
             if let Some(owner) = dict_get_string(dict, kCGWindowOwnerName) {
-                if crate::window_monitor::is_whitelisted(&owner) {
+                if crate::window_monitor::is_whitelisted(&owner, whitelist) {
                     if let Some(num) = dict_get_i64(dict, kCGWindowNumber) {
                         eprintln!(
                             "[screenshot] matched window owner={:?} number={}",
@@ -177,7 +177,7 @@ fn frontmost_window_cg_id(_app_name: &str) -> Option<i64> {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn frontmost_window_cg_id(_app_name: &str) -> Option<i64> {
+fn frontmost_window_cg_id(_app_name: &str, _whitelist: &[String]) -> Option<i64> {
     None
 }
 
