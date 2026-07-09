@@ -1,5 +1,5 @@
 import { load } from "@tauri-apps/plugin-store";
-import type { TodoItem, AppConfig } from "@/types";
+import type { TodoItem, AppConfig, Tombstone } from "@/types";
 
 const STORE_PATH = "taskly-data.json";
 
@@ -31,4 +31,26 @@ export async function saveConfig(config: AppConfig): Promise<void> {
 export async function loadConfig(): Promise<AppConfig | null> {
   const s = await getStore();
   return await s.get<AppConfig>("config") || null;
+}
+
+export async function saveTombstones(tombstones: Tombstone[]): Promise<void> {
+  const s = await getStore();
+  await s.set("tombstones", tombstones);
+}
+
+export async function loadTombstones(): Promise<Tombstone[]> {
+  const s = await getStore();
+  const tombstones = await s.get<Tombstone[]>("tombstones");
+  return tombstones || [];
+}
+
+export async function saveNotifiedReminders(ids: string[]): Promise<void> {
+  const s = await getStore();
+  await s.set("notifiedReminders", ids);
+}
+
+export async function loadNotifiedReminders(): Promise<string[]> {
+  const s = await getStore();
+  const ids = await s.get<string[]>("notifiedReminders");
+  return ids || [];
 }

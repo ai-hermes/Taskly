@@ -1,22 +1,38 @@
 import { create } from "zustand";
-import type { TodoItem, AppConfig } from "@/types";
+import type { TodoItem, AppConfig, Tombstone } from "@/types";
+import { dedupTodos, makeTombstone, fingerprint } from "@/services/dedup";
 
 interface TodoStore {
   todos: TodoItem[];
-  addTodos: (items: TodoItem[]) => void;
+  tombstones: Tombstone[];
+  addTodos: (items: TodoItem[], tombstoneTtlMs?: number) => void;
   toggleTodo: (id: string) => void;
   removeTodo: (id: string) => void;
+  updateTodo: (id: string, patch: Partial<TodoItem>) => void;
   setTodos: (todos: TodoItem[]) => void;
+  setTombstones: (tombstones: Tombstone[]) => void;
 }
 
 export const useTodoStore = create<TodoStore>((set) => ({
   todos: [],
-  addTodos: (items) =>
+  tombstones: [],
+  addTodos: (items, tombstoneTtlMs = 0) =>
     set((state) => {
-      // Deduplicate by title similarity
-      const existing = new Set(state.todos.map((t) => t.title));
-      const newItems = items.filter((item) => !existing.has(item.title));
-      return { todos: [...state.todos, ...newItems] };
+      const now = Date.now();
+      const { added, liveTombstones } = dedupTodos(
+        items,
+        state.todos,
+        state.tombstones,
+        tombstoneTtlMs,
+        now
+      );
+      if (added.length === 0 && liveTombstones.length === state.tombstones.length) {
+        return {};
+      }
+      return {
+        todos: added.length ? [...state.todos, ...added] : state.todos,
+        tombstones: liveTombstones,
+      };
     }),
   toggleTodo: (id) =>
     set((state) => ({
@@ -25,8 +41,41 @@ export const useTodoStore = create<TodoStore>((set) => ({
       ),
     })),
   removeTodo: (id) =>
-    set((state) => ({ todos: state.todos.filter((t) => t.id !== id) })),
-  setTodos: (todos) => set({ todos }),
+    set((state) => {
+      const target = state.todos.find((t) => t.id === id);
+      const tombstones = target
+        ? [...state.tombstones, makeTombstone(target)]
+        : state.tombstones;
+      return {
+        todos: state.todos.filter((t) => t.id !== id),
+        tombstones,
+      };
+    }),
+  updateTodo: (id, patch) =>
+    set((state) => ({
+      todos: state.todos.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              ...patch,
+              // Recompute fingerprint when title/dueDate change.
+              fingerprint: fingerprint({
+                title: patch.title ?? t.title,
+                dueDate: patch.dueDate ?? t.dueDate,
+              }),
+              updatedAt: new Date().toISOString(),
+            }
+          : t
+      ),
+    })),
+  setTodos: (todos) =>
+    set({
+      todos: todos.map((t) => ({
+        ...t,
+        fingerprint: t.fingerprint || fingerprint(t),
+      })),
+    }),
+  setTombstones: (tombstones) => set({ tombstones }),
 }));
 
 interface ConfigStore {
@@ -37,23 +86,20 @@ interface ConfigStore {
 const defaultConfig: AppConfig = {
   whitelist: ["微信", "WeChat", "Weixin"],
   screenshotInterval: 30,
-  llmProvider: "ollama",
+  llmProvider: "openai",
   llmConfig: {
     openai: {
       baseUrl: "https://api.openai.com/v1",
       apiKey: "",
       model: "gpt-4o-mini",
     },
-    ollama: {
-      baseUrl: "http://localhost:11434",
-      apiKey: "",
-      model: "qwen2.5:7b",
-    },
   },
   syncEnabled: false,
   serverUrl: "http://localhost:8080",
   startupOpenMainWindow: false,
   debuggerConsoleEnabled: false,
+  dedupTombstoneTtlMinutes: 30,
+  remindersEnabled: true,
 };
 
 export const useConfigStore = create<ConfigStore>((set) => ({

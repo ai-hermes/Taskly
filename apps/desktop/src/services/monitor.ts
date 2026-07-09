@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { recognizeImage, startOcrEngine } from "./ocr";
-import { OpenAIProvider, OllamaProvider } from "./llm";
+import { OpenAIProvider } from "./llm";
+import { hashString, normalizeTitle, FRAME_CACHE_SIZE, FRAME_CACHE_TTL_MS } from "./dedup";
 import type { AppConfig, TodoItem, LLMProvider } from "@/types";
 
 /**
@@ -18,6 +19,9 @@ export class MonitorService {
   private tickCount = 0;
   private onOcrText?: (text: string) => void;
   private onError?: (message: string) => void;
+  private getKnownTitles?: () => string[];
+  // Frame-level cache of recently-seen normalized OCR hashes (LRU + TTL).
+  private frameCache = new Map<string, number>();
 
   constructor(
     config: AppConfig,
@@ -25,29 +29,24 @@ export class MonitorService {
     handlers?: {
       onOcrText?: (text: string) => void;
       onError?: (message: string) => void;
+      getKnownTitles?: () => string[];
     }
   ) {
     this.config = config;
     this.onTodosFound = onTodosFound;
     this.onOcrText = handlers?.onOcrText;
     this.onError = handlers?.onError;
+    this.getKnownTitles = handlers?.getKnownTitles;
 
     // Initialize LLM provider
-    if (config.llmProvider === "openai" && config.llmConfig.openai) {
-      this.llmProvider = new OpenAIProvider(
-        config.llmConfig.openai.apiKey,
-        config.llmConfig.openai.model,
-        config.llmConfig.openai.baseUrl
-      );
-    } else if (config.llmConfig.ollama) {
-      this.llmProvider = new OllamaProvider(
-        config.llmConfig.ollama.baseUrl,
-        config.llmConfig.ollama.apiKey,
-        config.llmConfig.ollama.model
-      );
-    } else {
+    if (!config.llmConfig.openai) {
       throw new Error("No LLM provider configured");
     }
+    this.llmProvider = new OpenAIProvider(
+      config.llmConfig.openai.apiKey,
+      config.llmConfig.openai.model,
+      config.llmConfig.openai.baseUrl
+    );
   }
 
   /**
@@ -117,7 +116,9 @@ export class MonitorService {
       }
 
       // 2. Capture screenshot
-      const imagePath = await invoke<string>("capture_screenshot");
+      const imagePath = await invoke<string>("capture_screenshot", {
+        whitelist: this.config.whitelist,
+      });
       console.debug("[Monitor] screenshot path=%o", imagePath);
       if (!imagePath) {
         console.warn("[Monitor] skip: empty screenshot path");
@@ -147,9 +148,16 @@ export class MonitorService {
       }
       this.onOcrText?.(ocrText);
 
+      // 3.5 Frame-level dedup: skip LLM if this OCR frame was seen recently.
+      if (this.isRecentFrame(ocrText)) {
+        console.debug("[Monitor] skip: OCR frame unchanged (frame cache hit)");
+        return;
+      }
+
       // 4. Extract todos via LLM
       console.debug("[Monitor] extracting todos via %s...", this.llmProvider.name);
-      const todos = await this.llmProvider.extractTodos(ocrText);
+      const knownTitles = this.getKnownTitles?.() ?? [];
+      const todos = await this.llmProvider.extractTodos(ocrText, knownTitles);
       console.info("[Monitor] extracted %d todo(s)", todos.length);
       if (todos.length > 0) {
         this.onTodosFound(todos);
@@ -161,5 +169,34 @@ export class MonitorService {
     } finally {
       console.debug("[Monitor] tick done in %dms", Date.now() - startedAt);
     }
+  }
+
+  /**
+   * Returns true if this OCR frame's normalized hash was seen within the TTL.
+   * Records the frame (LRU eviction) as a side effect when it's new.
+   */
+  private isRecentFrame(ocrText: string): boolean {
+    const now = Date.now();
+    const key = hashString(normalizeTitle(ocrText));
+
+    // Evict expired entries.
+    for (const [k, ts] of this.frameCache) {
+      if (now - ts > FRAME_CACHE_TTL_MS) this.frameCache.delete(k);
+    }
+
+    const seenAt = this.frameCache.get(key);
+    if (seenAt !== undefined && now - seenAt <= FRAME_CACHE_TTL_MS) {
+      this.frameCache.set(key, now); // refresh recency
+      return true;
+    }
+
+    this.frameCache.set(key, now);
+    // Enforce LRU capacity (Map preserves insertion order).
+    while (this.frameCache.size > FRAME_CACHE_SIZE) {
+      const oldest = this.frameCache.keys().next().value;
+      if (oldest === undefined) break;
+      this.frameCache.delete(oldest);
+    }
+    return false;
   }
 }

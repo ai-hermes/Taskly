@@ -7,7 +7,7 @@
 - 🖥️ **智能截图** - 监控白名单应用（微信），自动截图
 - 🔍 **本地 OCR** - ocr-rs 本地识别，数据不出设备
 - 🤖 **AI 提取** - 大模型从聊天文本中提取结构化待办
-- 📋 **桌面 Widget** - 待办事项桌面小组件，一目了然
+- 🔔 **到期提醒** - 待办到点自动弹出系统通知，不错过截止时间
 - 💬 **桌面 Copilot** - 悬浮助手窗口，实时显示识别状态
 - ☁️ **云端同步** - 远端集中管理，多设备同步
 
@@ -17,7 +17,7 @@
 |------|--------|
 | 桌面端 | Tauri 2.x + React + TypeScript |
 | 本地 OCR | rust-paddle-ocr + MNN runtime |
-| 大模型 | 可配置 (OpenAI / Ollama) |
+| 大模型 | OpenAI 兼容接口 |
 | 后端 | Go + Gin + PostgreSQL |
 
 ## 项目结构
@@ -53,7 +53,7 @@ pnpm dev
 pnpm dev:server
 ```
 
-> 提示：默认使用 Ollama，本地需有可用模型（如 `qwen2.5:7b`）；并且 macOS 需要给 Taskly 授予「屏幕录制」与「辅助功能」权限，否则无法截图/识别。
+> 提示：大模型使用 OpenAI 兼容接口，需在设置中填入 Base URL、API Key 与模型名；并且 macOS 需要给 Taskly 授予「屏幕录制」与「辅助功能」权限，否则无法截图/识别。
 
 OCR 使用内置 Rust 命令直接调用 `ocr-rs`，模型文件位于 `apps/desktop/src-tauri/models/`，不需要构建 Python sidecar。
 

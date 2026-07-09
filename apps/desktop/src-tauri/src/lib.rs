@@ -6,7 +6,7 @@ mod window_monitor;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Manager, RunEvent, WebviewUrl, WebviewWindowBuilder,
+    Manager, RunEvent, WindowEvent,
 };
 
 const TRAY_ICON: tauri::image::Image<'_> = tauri::include_image!("./icons/trayIcon.png");
@@ -30,8 +30,12 @@ fn set_macos_dock_icon() {
 fn set_macos_dock_icon() {}
 
 #[tauri::command]
-async fn capture_screenshot(_app: tauri::AppHandle) -> Result<String, String> {
-    screenshot::capture_focused_window().map_err(|e| format!("Screenshot failed: {}", e))
+async fn capture_screenshot(
+    _app: tauri::AppHandle,
+    whitelist: Option<Vec<String>>,
+) -> Result<String, String> {
+    let whitelist = whitelist.unwrap_or_default();
+    screenshot::capture_focused_window(&whitelist).map_err(|e| format!("Screenshot failed: {}", e))
 }
 
 #[tauri::command]
@@ -58,15 +62,21 @@ fn open_screen_recording_settings() -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn list_running_apps() -> Result<Vec<String>, String> {
+    window_monitor::list_running_apps().map_err(|e| format!("Failed to list running apps: {}", e))
+}
+
+#[tauri::command]
 async fn get_active_window() -> Result<String, String> {
     window_monitor::get_frontmost_app().map_err(|e| format!("Failed to get active window: {}", e))
 }
 
 #[tauri::command]
-async fn is_whitelisted_app() -> Result<bool, String> {
+async fn is_whitelisted_app(whitelist: Option<Vec<String>>) -> Result<bool, String> {
+    let whitelist = whitelist.unwrap_or_default();
     let app_name = window_monitor::get_frontmost_app()
         .map_err(|e| format!("Failed to get active window: {}", e))?;
-    Ok(window_monitor::is_whitelisted(&app_name))
+    Ok(window_monitor::is_whitelisted(&app_name, &whitelist))
 }
 
 #[tauri::command]
@@ -77,33 +87,6 @@ async fn recognize_image(
     tauri::async_runtime::spawn_blocking(move || ocr::recognize_image(&app, &image_path))
         .await
         .map_err(|e| format!("OCR task failed: {}", e))?
-}
-
-#[tauri::command]
-async fn open_widget_window(app: tauri::AppHandle) -> Result<(), String> {
-    if app.get_webview_window("widget").is_some() {
-        return Ok(());
-    }
-
-    WebviewWindowBuilder::new(&app, "widget", WebviewUrl::App("/widget".into()))
-        .title("Taskly Widget")
-        .inner_size(240.0, 300.0)
-        .decorations(false)
-        .always_on_top(true)
-        .resizable(false)
-        .skip_taskbar(true)
-        .build()
-        .map_err(|e| format!("Failed to create widget window: {}", e))?;
-
-    Ok(())
-}
-
-#[tauri::command]
-async fn close_widget_window(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("widget") {
-        window.close().map_err(|e| e.to_string())?;
-    }
-    Ok(())
 }
 
 #[tauri::command]
@@ -145,13 +128,13 @@ async fn set_debugger_console(app: tauri::AppHandle, enabled: bool) -> Result<()
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             capture_screenshot,
             get_active_window,
             is_whitelisted_app,
+            list_running_apps,
             recognize_image,
-            open_widget_window,
-            close_widget_window,
             show_main_window,
             set_debugger_console,
             check_screen_recording_permission,
@@ -161,6 +144,16 @@ pub fn run() {
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_icon(DOCK_ICON);
+
+                // Closing the main window hides it to the background (tray)
+                // instead of quitting. Use the tray "退出" item to fully exit.
+                let main_window = window.clone();
+                window.on_window_event(move |event| {
+                    if let WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = main_window.hide();
+                    }
+                });
             }
 
             // Log permission status at startup to aid debugging.
@@ -171,9 +164,8 @@ pub fn run() {
 
             // Build tray menu
             let show_item = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
-            let widget_item = MenuItem::with_id(app, "widget", "显示 Widget", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_item, &widget_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
             TrayIconBuilder::new()
                 .icon(TRAY_ICON)
@@ -186,12 +178,6 @@ pub fn run() {
                             let _ = window.show();
                             let _ = window.set_focus();
                         }
-                    }
-                    "widget" => {
-                        let app_handle = app.clone();
-                        tauri::async_runtime::spawn(async move {
-                            let _ = open_widget_window(app_handle).await;
-                        });
                     }
                     "quit" => {
                         app.exit(0);
@@ -218,9 +204,18 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app_handle, event| {
-            if matches!(event, RunEvent::Ready) {
+        .run(|app_handle, event| match event {
+            RunEvent::Ready => {
                 set_macos_dock_icon();
             }
+            // Clicking the Dock icon (macOS) re-shows and focuses the main window.
+            #[cfg(target_os = "macos")]
+            RunEvent::Reopen { .. } => {
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+            _ => {}
         });
 }
