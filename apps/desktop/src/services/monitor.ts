@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { recognizeImage, startOcrEngine } from "./ocr";
-import { OpenAIProvider, OllamaProvider } from "./llm";
+import { OpenAIProvider } from "./llm";
 import type { AppConfig, TodoItem, LLMProvider } from "@/types";
 
 /**
@@ -33,21 +33,14 @@ export class MonitorService {
     this.onError = handlers?.onError;
 
     // Initialize LLM provider
-    if (config.llmProvider === "openai" && config.llmConfig.openai) {
-      this.llmProvider = new OpenAIProvider(
-        config.llmConfig.openai.apiKey,
-        config.llmConfig.openai.model,
-        config.llmConfig.openai.baseUrl
-      );
-    } else if (config.llmConfig.ollama) {
-      this.llmProvider = new OllamaProvider(
-        config.llmConfig.ollama.baseUrl,
-        config.llmConfig.ollama.apiKey,
-        config.llmConfig.ollama.model
-      );
-    } else {
+    if (!config.llmConfig.openai) {
       throw new Error("No LLM provider configured");
     }
+    this.llmProvider = new OpenAIProvider(
+      config.llmConfig.openai.apiKey,
+      config.llmConfig.openai.model,
+      config.llmConfig.openai.baseUrl
+    );
   }
 
   /**

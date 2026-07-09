@@ -30,10 +30,9 @@ export interface LLMProvider {
 export interface AppConfig {
   whitelist: string[];
   screenshotInterval: number; // seconds
-  llmProvider: "openai" | "ollama";
+  llmProvider: "openai";
   llmConfig: {
     openai?: { baseUrl: string; apiKey: string; model: string };
-    ollama?: { baseUrl: string; apiKey: string; model: string };
   };
   syncEnabled: boolean;
   serverUrl: string;

@@ -19,11 +19,6 @@ export function Settings({ onClose }: { onClose: () => void }) {
     apiKey: "",
     model: "gpt-4o-mini",
   };
-  const ollamaConfig = local.llmConfig.ollama || {
-    baseUrl: "http://localhost:11434",
-    apiKey: "",
-    model: "qwen2.5:7b",
-  };
 
   const handleSave = () => {
     updateConfig(local);
@@ -236,162 +231,64 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
         <section className="settings-section">
           <h3>AI 模型</h3>
-          <div className="field">
-            <span>Provider</span>
-            <div className="segmented-control" role="group" aria-label="AI Provider">
-              <button
-                type="button"
-                className={local.llmProvider === "ollama" ? "selected" : ""}
-                aria-pressed={local.llmProvider === "ollama"}
-                onClick={() =>
-                  setLocal({
-                    ...local,
-                    llmProvider: "ollama",
-                  })
-                }
-              >
-                Ollama
-              </button>
-              <button
-                type="button"
-                className={local.llmProvider === "openai" ? "selected" : ""}
-                aria-pressed={local.llmProvider === "openai"}
-                onClick={() =>
-                  setLocal({
-                    ...local,
-                    llmProvider: "openai",
-                  })
-                }
-              >
-                OpenAI
-              </button>
-            </div>
-            <small>本地优先使用 Ollama，需要云端模型时切换 OpenAI。</small>
-          </div>
-
-          {local.llmProvider === "openai" && (
-            <>
-              <label className="field">
-                <span>Base URL</span>
-                <input
-                  type="text"
-                  value={openaiConfig.baseUrl}
-                  onChange={(e) =>
-                    setLocal({
-                      ...local,
-                      llmConfig: {
-                        ...local.llmConfig,
-                        openai: {
-                          ...openaiConfig,
-                          baseUrl: e.target.value,
-                        },
-                      },
-                    })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>API Key</span>
-                <input
-                  type="password"
-                  value={openaiConfig.apiKey}
-                  onChange={(e) =>
-                    setLocal({
-                      ...local,
-                      llmConfig: {
-                        ...local.llmConfig,
-                        openai: {
-                          ...openaiConfig,
-                          apiKey: e.target.value,
-                        },
-                      },
-                    })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>模型</span>
-                <input
-                  type="text"
-                  value={openaiConfig.model}
-                  onChange={(e) =>
-                    setLocal({
-                      ...local,
-                      llmConfig: {
-                        ...local.llmConfig,
-                        openai: {
-                          ...openaiConfig,
-                          model: e.target.value,
-                        },
-                      },
-                    })
-                  }
-                />
-              </label>
-            </>
-          )}
-
-          {local.llmProvider === "ollama" && (
-            <>
-              <label className="field">
-                <span>Ollama 地址</span>
-                <input
-                  type="text"
-                  value={ollamaConfig.baseUrl}
-                  onChange={(e) =>
-                    setLocal({
-                      ...local,
-                      llmConfig: {
-                        ...local.llmConfig,
-                        ollama: {
-                          ...ollamaConfig,
-                          baseUrl: e.target.value,
-                        },
-                      },
-                    })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>模型名称</span>
-                <input
-                  type="text"
-                  value={ollamaConfig.model}
-                  onChange={(e) =>
-                    setLocal({
-                      ...local,
-                      llmConfig: {
-                        ...local.llmConfig,
-                        ollama: {
-                          ...ollamaConfig,
-                          model: e.target.value,
-                        },
-                      },
-                    })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>API Key</span>
-                <input
-                  type="password"
-                  value={ollamaConfig.apiKey}
-                  onChange={(e) =>
-                    setLocal({
-                      ...local,
-                      llmConfig: {
-                        ...local.llmConfig,
-                        ollama: {
-                          ...ollamaConfig,
-                          apiKey: e.target.value,
-                        },
-                      },
-                    })
-                  }
-                />
-              </label>
-            </>
-          )}
+          <label className="field">
+            <span>Base URL</span>
+            <input
+              type="text"
+              value={openaiConfig.baseUrl}
+              onChange={(e) =>
+                setLocal({
+                  ...local,
+                  llmConfig: {
+                    ...local.llmConfig,
+                    openai: {
+                      ...openaiConfig,
+                      baseUrl: e.target.value,
+                    },
+                  },
+                })
+              }
+            />
+            <small>兼容 OpenAI 接口，可填入自建/代理地址。</small>
+          </label>
+          <label className="field">
+            <span>API Key</span>
+            <input
+              type="password"
+              value={openaiConfig.apiKey}
+              onChange={(e) =>
+                setLocal({
+                  ...local,
+                  llmConfig: {
+                    ...local.llmConfig,
+                    openai: {
+                      ...openaiConfig,
+                      apiKey: e.target.value,
+                    },
+                  },
+                })
+              }
+            />
+          </label>
+          <label className="field">
+            <span>模型</span>
+            <input
+              type="text"
+              value={openaiConfig.model}
+              onChange={(e) =>
+                setLocal({
+                  ...local,
+                  llmConfig: {
+                    ...local.llmConfig,
+                    openai: {
+                      ...openaiConfig,
+                      model: e.target.value,
+                    },
+                  },
+                })
+              }
+            />
+          </label>
         </section>
 
         <section className="settings-section">

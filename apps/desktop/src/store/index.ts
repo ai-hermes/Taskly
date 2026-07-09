@@ -37,17 +37,12 @@ interface ConfigStore {
 const defaultConfig: AppConfig = {
   whitelist: ["微信", "WeChat", "Weixin"],
   screenshotInterval: 30,
-  llmProvider: "ollama",
+  llmProvider: "openai",
   llmConfig: {
     openai: {
       baseUrl: "https://api.openai.com/v1",
       apiKey: "",
       model: "gpt-4o-mini",
-    },
-    ollama: {
-      baseUrl: "http://localhost:11434",
-      apiKey: "",
-      model: "qwen2.5:7b",
     },
   },
   syncEnabled: false,

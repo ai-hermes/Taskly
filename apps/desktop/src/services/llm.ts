@@ -67,57 +67,6 @@ export class OpenAIProvider implements LLMProvider {
   }
 }
 
-export class OllamaProvider implements LLMProvider {
-  name = "ollama";
-  private baseUrl: string;
-  private apiKey: string;
-  private model: string;
-
-  constructor(baseUrl = "http://localhost:11434", apiKey = "", model = "qwen2.5:7b") {
-    this.baseUrl = normalizeBaseUrl(baseUrl);
-    this.apiKey = apiKey;
-    this.model = model;
-  }
-
-  async extractTodos(ocrText: string): Promise<TodoItem[]> {
-    const prompt = EXTRACT_PROMPT.replace("{text}", ocrText);
-
-    const response = await fetch(`${this.baseUrl}/api/generate`, {
-      method: "POST",
-      headers: buildHeaders(this.apiKey),
-      body: JSON.stringify({
-        model: this.model,
-        prompt,
-        stream: false,
-        format: "json",
-      }),
-    });
-
-    const data = await response.json();
-    const content = data.response;
-
-    if (!content) return [];
-
-    try {
-      const parsed = JSON.parse(content);
-      const items = Array.isArray(parsed) ? parsed : parsed.todos || [];
-      return items.map((item: any) => ({
-        id: crypto.randomUUID(),
-        title: item.title,
-        description: item.description || "",
-        done: false,
-        source: "wechat_ocr",
-        sourceText: ocrText.slice(0, 200),
-        priority: item.priority || 0,
-        dueDate: item.dueDate,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }));
-    } catch {
-      return [];
-    }
-  }
-}
 
 function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, "");
