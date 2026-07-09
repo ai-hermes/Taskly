@@ -6,6 +6,7 @@ interface TodoStore {
   addTodos: (items: TodoItem[]) => void;
   toggleTodo: (id: string) => void;
   removeTodo: (id: string) => void;
+  updateTodo: (id: string, patch: Partial<TodoItem>) => void;
   setTodos: (todos: TodoItem[]) => void;
 }
 
@@ -26,6 +27,14 @@ export const useTodoStore = create<TodoStore>((set) => ({
     })),
   removeTodo: (id) =>
     set((state) => ({ todos: state.todos.filter((t) => t.id !== id) })),
+  updateTodo: (id, patch) =>
+    set((state) => ({
+      todos: state.todos.map((t) =>
+        t.id === id
+          ? { ...t, ...patch, updatedAt: new Date().toISOString() }
+          : t
+      ),
+    })),
   setTodos: (todos) => set({ todos }),
 }));
 
