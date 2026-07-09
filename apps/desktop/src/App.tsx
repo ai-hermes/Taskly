@@ -5,7 +5,7 @@ import { CopilotPanel } from "@/components/CopilotPanel";
 import { PermissionGuide } from "@/components/PermissionGuide";
 import { useTodoStore, useConfigStore, useAppState } from "@/store";
 import { MonitorService } from "@/services/monitor";
-import { loadConfig, loadTodos, saveTodos } from "@/services/storage";
+import { loadConfig, loadTodos, saveTodos, loadTombstones, saveTombstones } from "@/services/storage";
 import { setDebuggerConsole } from "@/services/debugger";
 import { showMainWindow } from "@/services/window";
 import { checkScreenRecordingPermission } from "@/services/permissions";
@@ -27,7 +27,7 @@ function App() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasPermission, setHasPermission] = useState(true);
   const [showPermissionGuide, setShowPermissionGuide] = useState(false);
-  const { todos, addTodos, setTodos } = useTodoStore();
+  const { todos, addTodos, setTodos, tombstones, setTombstones } = useTodoStore();
   const { config, updateConfig } = useConfigStore();
   const {
     monitoring,
@@ -41,15 +41,16 @@ function App() {
 
   // Load saved todos on startup
   useEffect(() => {
-    loadTodos()
-      .then((saved) => {
-        if (saved.length > 0) setTodos(saved);
+    Promise.all([loadTodos(), loadTombstones()])
+      .then(([savedTodos, savedTombstones]) => {
+        if (savedTodos.length > 0) setTodos(savedTodos);
+        if (savedTombstones.length > 0) setTombstones(savedTombstones);
       })
       .catch((err) => {
         console.error("Failed to load todos:", err);
       })
       .finally(() => setIsLoaded(true));
-  }, [setTodos]);
+  }, [setTodos, setTombstones]);
 
   useEffect(() => {
     loadConfig()
@@ -87,6 +88,12 @@ function App() {
     saveTodos(todos);
   }, [todos, isLoaded]);
 
+  // Persist tombstones on change
+  useEffect(() => {
+    if (!isLoaded) return;
+    saveTombstones(tombstones);
+  }, [tombstones, isLoaded]);
+
   useEffect(() => {
     return () => {
       monitor?.stop();
@@ -96,9 +103,10 @@ function App() {
   // Handle new todos found by monitor
   const handleTodosFound = useCallback(
     (newTodos: TodoItem[]) => {
-      addTodos(newTodos);
+      const ttlMs = Math.max(0, config.dedupTombstoneTtlMinutes) * 60 * 1000;
+      addTodos(newTodos, ttlMs);
     },
-    [addTodos]
+    [addTodos, config.dedupTombstoneTtlMinutes]
   );
 
   // Toggle monitoring
@@ -123,6 +131,11 @@ function App() {
             setLastMonitorError("");
           },
           onError: (message) => setLastMonitorError(message),
+          getKnownTitles: () =>
+            useTodoStore
+              .getState()
+              .todos.filter((t) => !t.done)
+              .map((t) => t.title),
         });
         await svc.start();
         setMonitor(svc);

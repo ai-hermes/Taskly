@@ -132,6 +132,24 @@ export function Settings({ onClose }: { onClose: () => void }) {
             />
             <small>单位为秒，建议保持在 15 秒以上。</small>
           </label>
+          <label className="field">
+            <span>删除后拦截时长</span>
+            <input
+              type="number"
+              min={0}
+              max={1440}
+              value={local.dedupTombstoneTtlMinutes}
+              onChange={(e) =>
+                setLocal({
+                  ...local,
+                  dedupTombstoneTtlMinutes: Math.max(0, Number(e.target.value)),
+                })
+              }
+            />
+            <small>
+              单位为分钟。删除的待办在此时长内不会被重复识别加入；0 表示关闭该拦截。
+            </small>
+          </label>
           <div className="field">
             <span>白名单应用</span>
             <div className="whitelist-chips">

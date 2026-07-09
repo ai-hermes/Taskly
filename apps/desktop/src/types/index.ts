@@ -9,6 +9,16 @@ export interface TodoItem {
   dueDate?: string;
   createdAt: string;
   updatedAt: string;
+  /** Normalized-title (+ due-day) hash used for deduplication. */
+  fingerprint?: string;
+}
+
+/** Record of a user-deleted todo, kept for a TTL to block re-detection. */
+export interface Tombstone {
+  fingerprint: string;
+  normalizedTitle: string;
+  /** Epoch millis when the todo was deleted. */
+  deletedAt: number;
 }
 
 export interface OcrResult {
@@ -24,7 +34,7 @@ export interface OcrResult {
 
 export interface LLMProvider {
   name: string;
-  extractTodos(ocrText: string): Promise<TodoItem[]>;
+  extractTodos(ocrText: string, knownTitles?: string[]): Promise<TodoItem[]>;
 }
 
 export interface AppConfig {
@@ -38,4 +48,6 @@ export interface AppConfig {
   serverUrl: string;
   startupOpenMainWindow: boolean;
   debuggerConsoleEnabled: boolean;
+  /** Minutes to block re-detection of a deleted todo (0 disables tombstones). */
+  dedupTombstoneTtlMinutes: number;
 }

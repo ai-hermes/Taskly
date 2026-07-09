@@ -1,4 +1,5 @@
 import type { LLMProvider, TodoItem } from "@/types";
+import { fingerprint } from "./dedup";
 
 const EXTRACT_PROMPT = `你是一个待办事项提取助手。请从以下聊天文本中识别出待办事项。
 
@@ -7,7 +8,7 @@ const EXTRACT_PROMPT = `你是一个待办事项提取助手。请从以下聊�
 2. 每个待办事项包含：title（简短标题）、description（详细描述，可选）、priority（0-3，0最低）
 3. 如果文本中提到截止时间，提取为 dueDate（ISO格式）
 4. 返回 JSON 数组格式
-
+{known}
 聊天文本：
 ---
 {text}
@@ -27,8 +28,9 @@ export class OpenAIProvider implements LLMProvider {
     this.model = model;
   }
 
-  async extractTodos(ocrText: string): Promise<TodoItem[]> {
-    const prompt = EXTRACT_PROMPT.replace("{text}", ocrText);
+  async extractTodos(ocrText: string, knownTitles: string[] = []): Promise<TodoItem[]> {
+    const knownBlock = buildKnownBlock(knownTitles);
+    const prompt = EXTRACT_PROMPT.replace("{known}", knownBlock).replace("{text}", ocrText);
 
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
@@ -58,6 +60,7 @@ export class OpenAIProvider implements LLMProvider {
         sourceText: ocrText.slice(0, 200),
         priority: item.priority || 0,
         dueDate: item.dueDate,
+        fingerprint: fingerprint({ title: item.title, dueDate: item.dueDate }),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }));
@@ -67,6 +70,13 @@ export class OpenAIProvider implements LLMProvider {
   }
 }
 
+
+function buildKnownBlock(knownTitles: string[]): string {
+  const titles = knownTitles.filter((t) => t && t.trim()).slice(0, 30);
+  if (titles.length === 0) return "\n";
+  const list = titles.map((t) => `- ${t}`).join("\n");
+  return `\n以下待办已存在，请勿重复输出（含语义相近的重复）：\n${list}\n`;
+}
 
 function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, "");
