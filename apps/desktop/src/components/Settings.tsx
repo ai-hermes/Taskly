@@ -318,6 +318,47 @@ export function Settings({ onClose }: { onClose: () => void }) {
                 })
               }
             />
+            <small>用于 OCR 待办解析，同时作为内置 Agent 执行的模型凭据。</small>
+          </label>
+        </section>
+
+        <section className="settings-section">
+          <h3>Agent 执行</h3>
+          <label className="field">
+            <span>Agent 命令</span>
+            <input
+              type="text"
+              value={local.agentCommand}
+              placeholder="留空使用内置 pi-coding-agent"
+              onChange={(e) => setLocal({ ...local, agentCommand: e.target.value })}
+            />
+            <small>留空使用应用内置的 pi-coding-agent；高级用户可覆盖为自定义命令。</small>
+          </label>
+          <label className="field">
+            <span>执行超时（秒）</span>
+            <input
+              type="number"
+              min={30}
+              value={local.agentTimeoutSec}
+              onChange={(e) =>
+                setLocal({
+                  ...local,
+                  agentTimeoutSec: Math.max(30, Number(e.target.value) || 600),
+                })
+              }
+            />
+          </label>
+          <label className="field">
+            <span>工作区根目录</span>
+            <input
+              type="text"
+              value={local.workspaceBaseDir}
+              placeholder="留空使用应用数据目录"
+              onChange={(e) =>
+                setLocal({ ...local, workspaceBaseDir: e.target.value })
+              }
+            />
+            <small>每条待办的独立工作区将创建在该目录的 todo-workspaces/ 下。</small>
           </label>
         </section>
 

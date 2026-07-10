@@ -57,6 +57,17 @@ pnpm dev:server
 
 OCR 使用内置 Rust 命令直接调用 `ocr-rs`，模型文件位于 `apps/desktop/src-tauri/models/`，不需要构建 Python sidecar。
 
+### 内置 pi-coding-agent（一键完成待办）
+
+待办的「一键执行」依赖内置的 `pi-coding-agent` sidecar 二进制。首次开发或打包前需构建一次（要求本机安装 [bun](https://bun.sh)）：
+
+```bash
+cd apps/desktop
+pnpm build:sidecar
+```
+
+产物输出到 `apps/desktop/src-tauri/binaries/pi-coding-agent-{target-triple}`（已 gitignore），打包时经 `tauri.conf.json` 的 `externalBin` 随应用分发。高级用户可在设置中覆盖为自定义 agent 命令。
+
 ## 隐私说明
 
 - 截图数据仅在本地处理，不上传服务器

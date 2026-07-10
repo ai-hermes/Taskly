@@ -1,5 +1,10 @@
 import { load } from "@tauri-apps/plugin-store";
-import type { TodoItem, AppConfig, Tombstone } from "@/types";
+import type {
+  TodoItem,
+  AppConfig,
+  Tombstone,
+  TranscriptEntry,
+} from "@/types";
 
 const STORE_PATH = "taskly-data.json";
 
@@ -53,4 +58,27 @@ export async function loadNotifiedReminders(): Promise<string[]> {
   const s = await getStore();
   const ids = await s.get<string[]>("notifiedReminders");
   return ids || [];
+}
+
+/** Persist the per-todo agent conversation history so it survives restarts. */
+export async function saveChatTranscripts(
+  transcripts: Record<string, TranscriptEntry[]>
+): Promise<void> {
+  const s = await getStore();
+  // Drop empty entries to keep the file tidy.
+  const pruned: Record<string, TranscriptEntry[]> = {};
+  for (const [id, entries] of Object.entries(transcripts)) {
+    if (entries && entries.length > 0) pruned[id] = entries;
+  }
+  await s.set("chatTranscripts", pruned);
+}
+
+export async function loadChatTranscripts(): Promise<
+  Record<string, TranscriptEntry[]>
+> {
+  const s = await getStore();
+  const data = await s.get<Record<string, TranscriptEntry[]>>(
+    "chatTranscripts"
+  );
+  return data || {};
 }
