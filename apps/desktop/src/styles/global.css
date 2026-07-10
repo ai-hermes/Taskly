@@ -82,10 +82,11 @@ select:focus-visible {
 }
 
 .app {
-  width: min(100vw, 640px);
-  min-height: 100vh;
-  margin: 0 auto;
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
   background: var(--surface-subtle);
 }
 
@@ -98,7 +99,7 @@ select:focus-visible {
   justify-content: space-between;
   gap: 12px;
   min-height: 64px;
-  margin: -16px -16px 16px;
+  flex: none;
   padding: 12px 16px;
   background: color-mix(in srgb, var(--surface-subtle) 92%, transparent);
   border-bottom: 1px solid var(--border);
@@ -202,13 +203,39 @@ select:focus-visible {
   font-size: 13px;
 }
 
-.app-main {
-  min-height: 320px;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-sidebar {
+  width: 340px;
+  flex: none;
+  overflow-y: auto;
+  padding: 14px 12px;
+  border-right: 1px solid var(--border);
   background: var(--surface-raised);
-  box-shadow: var(--shadow-card);
+}
+
+.app-chat {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+@media (max-width: 760px) {
+  .app-body {
+    flex-direction: column;
+  }
+
+  .app-sidebar {
+    width: 100%;
+    max-height: 42vh;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
 }
 
 .loading-state {
@@ -324,6 +351,12 @@ select:focus-visible {
   padding: 10px 4px 10px 8px;
   border-radius: var(--radius-sm);
   transition: background-color 150ms cubic-bezier(0.175, 0.885, 0.32, 1.1);
+  cursor: pointer;
+}
+
+.todo-item.active {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .todo-item.editing {
@@ -1167,4 +1200,878 @@ select:focus-visible {
   font-size: 12px;
   cursor: pointer;
   text-decoration: underline;
+}
+
+/* ---- Agent execution: modal shell ---- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.32);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+
+.modal {
+  background: var(--surface-raised);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-popover);
+  padding: 20px;
+  width: min(560px, calc(100vw - 48px));
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-header h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  flex: 1;
+}
+
+.modal-close {
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.modal-close:hover {
+  background: var(--gray-alpha-100);
+  color: var(--text-primary);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ---- Workspace prepare modal ---- */
+.safe-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--success);
+  background: var(--green-100);
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.workspace-todo-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.safe-mode-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.workspace-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.workspace-field > label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.workspace-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.workspace-path,
+.workspace-assets {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-field textarea {
+  font-family: "Geist Mono", monospace;
+  font-size: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+}
+
+.workspace-error {
+  font-size: 12px;
+  color: var(--danger);
+  margin: 0;
+}
+
+/* ---- Todo execution badges/buttons ---- */
+.todo-run:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.spin {
+  animation: exec-spin 0.9s linear infinite;
+}
+
+@keyframes exec-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.exec-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  margin-top: 2px;
+}
+
+.exec-badge.workspace_ready {
+  color: var(--accent);
+  background: var(--blue-100);
+}
+
+.exec-badge.running,
+.exec-badge.validating {
+  color: var(--accent);
+  background: var(--blue-300);
+}
+
+.exec-badge.waiting_input {
+  color: #9a6a00;
+  background: var(--yellow-100, #fff4d6);
+}
+
+.exec-badge.succeeded {
+  color: var(--success);
+  background: var(--green-100);
+}
+
+.exec-badge.failed {
+  color: var(--danger);
+  background: var(--red-100);
+}
+
+.agent-done-badge {
+  display: inline-flex;
+  width: fit-content;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--success);
+  background: var(--green-100);
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  margin-top: 2px;
+}
+
+/* ---- Agent chat pane (right column) ---- */
+.agent-chat-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--surface-subtle);
+}
+
+.agent-chat-pane.empty {
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-empty-state {
+  max-width: 380px;
+  text-align: center;
+  color: var(--text-tertiary);
+}
+
+.chat-empty-state svg {
+  color: var(--gray-400);
+}
+
+.chat-empty-state h3 {
+  margin: 10px 0 6px;
+  font-size: 16px;
+  color: var(--text-secondary);
+}
+
+.chat-empty-state p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.chat-pane-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex: none;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+}
+
+.chat-pane-heading {
+  min-width: 0;
+}
+
+.chat-pane-heading h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-pane-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.chat-pane-meta .exec-badge {
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-pane-tools {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.chat-pane-tools .btn-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.chat-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 18px;
+}
+
+.chat-timeline-empty {
+  margin: auto;
+  max-width: 420px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.chat-timeline-empty p {
+  margin: 0;
+}
+
+.chat-hint-warning {
+  display: block;
+  margin-top: 6px;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.chat-tool-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+}
+
+.chat-tool-entry code {
+  font-family: "Geist Mono", monospace;
+  color: var(--text-secondary);
+}
+
+.chat-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  padding: 10px 12px;
+}
+
+.execution-success {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--success);
+  margin: 0;
+}
+
+.chat-dock {
+  flex: none;
+  padding: 10px 18px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-raised);
+}
+
+.chat-composer.idle .composer-actions {
+  justify-content: flex-start;
+}
+
+.chat-log-dock {
+  height: 180px;
+  margin-top: 8px;
+}
+
+.run-id {
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.phase-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.phase-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.phase-step.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.phase-step.done {
+  color: var(--success);
+}
+
+.phase-step.failed {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.phase-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gray-500);
+}
+
+.log-view {
+  background: #101014;
+  color: #d6d6dc;
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  height: 240px;
+  overflow-y: auto;
+  font-family: "Geist Mono", monospace;
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.log-line {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.log-line.stderr {
+  color: #ff9a9a;
+}
+
+.log-line.system {
+  color: #8ab8ff;
+}
+
+.log-empty {
+  color: #7d7d8a;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.log-autoscroll {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.validation-list h4 {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0 0 6px;
+  color: var(--text-secondary);
+}
+
+.validation-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.validation-item summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.validation-item summary code {
+  flex: 1;
+  font-family: "Geist Mono", monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.validation-item summary span {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.validation-item.ok summary svg {
+  color: var(--success);
+}
+
+.validation-item.fail summary svg {
+  color: var(--danger);
+}
+
+.validation-item pre {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  background: var(--gray-900, #1e1e1e);
+  color: var(--gray-100, #eaeaea);
+  border-radius: var(--radius-sm);
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre;
+  tab-size: 2;
+}
+
+.validation-item pre.stderr {
+  color: #ff9a9a;
+  background: #2a1414;
+}
+
+.validation-stream-label {
+  display: block;
+  margin: 8px 0 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.execution-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--danger);
+  margin: 0;
+}
+
+.console-actions {
+  justify-content: flex-start;
+}
+
+/* ---- Interactive chat (HITL) ---- */
+
+.chat-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 92%;
+}
+
+.chat-bubble.user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.chat-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.chat-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 8px 11px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken, var(--gray-100));
+  color: var(--text-primary);
+}
+
+.chat-bubble.user .chat-text {
+  background: var(--accent);
+  color: #fff;
+}
+
+.chat-bubble.system .chat-text {
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  padding: 2px 4px;
+}
+
+.chat-bubble.streaming .chat-text {
+  border: 1px dashed var(--border-strong);
+}
+
+/* Markdown-rendered assistant output — same bubble shell as .chat-text. */
+.md {
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 8px 11px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken, var(--gray-100));
+  color: var(--text-primary);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.chat-bubble.streaming .md {
+  border: 1px dashed var(--border-strong);
+}
+
+.md > *:first-child {
+  margin-top: 0;
+}
+
+.md > *:last-child {
+  margin-bottom: 0;
+}
+
+.md p {
+  margin: 0 0 8px;
+}
+
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  margin: 14px 0 6px;
+  line-height: 1.3;
+  font-weight: 650;
+}
+
+.md h1 {
+  font-size: 17px;
+}
+.md h2 {
+  font-size: 15.5px;
+}
+.md h3 {
+  font-size: 14px;
+}
+.md h4 {
+  font-size: 13px;
+}
+
+.md ul,
+.md ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+.md li {
+  margin: 2px 0;
+}
+
+.md li > p {
+  margin: 0;
+}
+
+.md a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.md code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  background: var(--gray-200, rgba(0, 0, 0, 0.06));
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+
+.md pre {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  background: var(--gray-900, #1e1e1e);
+  color: var(--gray-100, #f2f2f2);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+}
+
+.md pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.md blockquote {
+  margin: 0 0 8px;
+  padding: 2px 12px;
+  border-left: 3px solid var(--border-strong);
+  color: var(--text-secondary);
+}
+
+.md table {
+  border-collapse: collapse;
+  margin: 0 0 8px;
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  font-size: 12.5px;
+}
+
+.md th,
+.md td {
+  border: 1px solid var(--border);
+  padding: 5px 9px;
+  text-align: left;
+}
+
+.md th {
+  background: var(--surface-sunken, var(--gray-100));
+  font-weight: 600;
+}
+
+.md hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 12px 0;
+}
+
+.md img {
+  max-width: 100%;
+  border-radius: var(--radius-md);
+}
+
+.chat-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.composer-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--success);
+}
+
+.chat-composer textarea {
+  width: 100%;
+  resize: vertical;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.composer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.btn-secondary.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* ---- Structured UI request ---- */
+.ui-request {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  background: var(--surface-sunken, var(--gray-100));
+}
+
+.ui-request-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ui-request-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ui-request-input {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.ui-request-input input,
+.ui-request-input textarea {
+  flex: 1;
+  font-size: 13px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.ui-request-cancel {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0;
+}
+
+.log-toggle {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0;
+}
+
+/* ---- Copilot recent execution card ---- */
+.copilot-exec-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.copilot-exec-card:hover {
+  border-color: var(--border-strong);
+}
+
+.copilot-exec-card h4 {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: var(--text-secondary);
+}
+
+.exec-card-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  margin: 0 0 2px;
+  color: var(--text-primary);
+}
+
+.exec-card-status {
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  margin: 0;
+  color: var(--text-tertiary);
+}
+
+.exec-card-status.succeeded {
+  color: var(--success);
+}
+
+.exec-card-status.failed {
+  color: var(--danger);
+}
+
+.exec-card-summary,
+.exec-card-error {
+  font-size: 11.5px;
+  margin: 4px 0 0;
+  color: var(--text-tertiary);
+}
+
+.exec-card-error {
+  color: var(--danger);
 }

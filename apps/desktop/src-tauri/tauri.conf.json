@@ -14,8 +14,10 @@
     "windows": [
       {
         "title": "Taskly",
-        "width": 480,
-        "height": 640,
+        "width": 1080,
+        "height": 720,
+        "minWidth": 840,
+        "minHeight": 600,
         "resizable": true,
         "decorations": true,
         "center": true,
@@ -36,7 +38,8 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": ["models"],
+    "resources": ["models", "binaries/pi-package"],
+    "externalBin": ["binaries/pi-coding-agent"],
     "macOS": {
       "minimumSystemVersion": "13.0"
     }

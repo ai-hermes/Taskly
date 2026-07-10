@@ -1,8 +1,27 @@
-import { useAppState } from "@/store";
-import { Robot, X } from "@phosphor-icons/react";
+import { useAppState, useTodoStore, useExecutionStore } from "@/store";
+import { Robot, X, Lightning } from "@phosphor-icons/react";
+import type { TodoExecutionStatus } from "@/types";
+
+const STATUS_LABELS: Record<TodoExecutionStatus, string> = {
+  idle: "空闲",
+  workspace_ready: "工作区就绪",
+  running: "执行中",
+  waiting_input: "等待回复",
+  validating: "校验中",
+  succeeded: "已完成",
+  failed: "失败",
+};
 
 export function CopilotPanel() {
   const { monitoring, lastOcrText, lastMonitorError, setCopilotVisible } = useAppState();
+  const setActiveTodo = useExecutionStore((s) => s.setActiveTodo);
+  const lastExecuted = useTodoStore((s) => {
+    const withExec = s.todos.filter((t) => t.execution?.runId);
+    if (withExec.length === 0) return undefined;
+    return withExec.reduce((a, b) =>
+      (a.execution!.startedAt ?? "") >= (b.execution!.startedAt ?? "") ? a : b
+    );
+  });
 
   return (
     <div className="copilot-panel">
@@ -26,6 +45,32 @@ export function CopilotPanel() {
           <span className={`status-dot ${monitoring ? "active" : "inactive"}`} />
           <span>{monitoring ? "监控中…" : "已暂停"}</span>
         </div>
+
+        {lastExecuted?.execution && (
+          <div
+            className="copilot-exec-card"
+            role="button"
+            onClick={() => setActiveTodo(lastExecuted.id)}
+            title="查看执行会话"
+          >
+            <h4>
+              <Lightning size={13} weight="fill" />
+              最近一次执行
+            </h4>
+            <p className="exec-card-title">{lastExecuted.title}</p>
+            <p className={`exec-card-status ${lastExecuted.execution.status}`}>
+              {lastExecuted.execution.runId} ·{" "}
+              {STATUS_LABELS[lastExecuted.execution.status] ??
+                lastExecuted.execution.status}
+            </p>
+            {lastExecuted.execution.summary && (
+              <p className="exec-card-summary">{lastExecuted.execution.summary}</p>
+            )}
+            {lastExecuted.execution.error && (
+              <p className="exec-card-error">{lastExecuted.execution.error}</p>
+            )}
+          </div>
+        )}
 
         {lastOcrText && (
           <div className="copilot-ocr-preview">

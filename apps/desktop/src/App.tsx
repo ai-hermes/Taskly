@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { TodoList } from "@/components/TodoList";
 import { Settings } from "@/components/Settings";
 import { CopilotPanel } from "@/components/CopilotPanel";
+import { AgentChatPane } from "@/components/AgentChatPane";
 import { PermissionGuide } from "@/components/PermissionGuide";
-import { useTodoStore, useConfigStore, useAppState } from "@/store";
+import { useTodoStore, useConfigStore, useAppState, useExecutionStore } from "@/store";
 import { MonitorService } from "@/services/monitor";
 import { ReminderService } from "@/services/reminder";
 import {
@@ -14,12 +15,41 @@ import {
   saveTombstones,
   loadNotifiedReminders,
   saveNotifiedReminders,
+  loadChatTranscripts,
+  saveChatTranscripts,
 } from "@/services/storage";
 import { setDebuggerConsole } from "@/services/debugger";
+import {
+  initExecutionListeners,
+  disposeExecutionListeners,
+} from "@/services/agent";
 import { showMainWindow } from "@/services/window";
 import { checkScreenRecordingPermission } from "@/services/permissions";
-import type { TodoItem } from "@/types";
+import type { TodoItem, TranscriptEntry } from "@/types";
 import { GearSix, Pause, Play, Robot } from "@phosphor-icons/react";
+
+/**
+ * A live execution status (running/waiting_input/validating) persisted on disk
+ * is stale after a restart — the pi child process is long gone. Downgrade those
+ * to a terminal "failed" so the chat pane offers "重新执行" instead of a live
+ * composer whose messages would fail, while keeping the reviewable history.
+ */
+function reconcileStaleRuns(todos: TodoItem[]): TodoItem[] {
+  const staleLive = new Set(["running", "waiting_input", "validating"]);
+  return todos.map((t) => {
+    const exec = t.execution;
+    if (!exec || !staleLive.has(exec.status)) return t;
+    return {
+      ...t,
+      execution: {
+        ...exec,
+        status: "failed",
+        finishedAt: exec.finishedAt ?? new Date().toISOString(),
+        error: exec.error ?? "上次会话已随应用关闭中断，可重新执行。",
+      },
+    };
+  });
+}
 
 function LoadingSkeleton() {
   return (
@@ -51,10 +81,12 @@ function App() {
 
   // Load saved todos on startup
   useEffect(() => {
-    Promise.all([loadTodos(), loadTombstones()])
-      .then(([savedTodos, savedTombstones]) => {
-        if (savedTodos.length > 0) setTodos(savedTodos);
+    Promise.all([loadTodos(), loadTombstones(), loadChatTranscripts()])
+      .then(([savedTodos, savedTombstones, savedTranscripts]) => {
+        if (savedTodos.length > 0) setTodos(reconcileStaleRuns(savedTodos));
         if (savedTombstones.length > 0) setTombstones(savedTombstones);
+        if (Object.keys(savedTranscripts).length > 0)
+          useExecutionStore.getState().hydrateTranscripts(savedTranscripts);
       })
       .catch((err) => {
         console.error("Failed to load todos:", err);
@@ -92,6 +124,16 @@ function App() {
     });
   }, []);
 
+  // Stream agent execution logs/phases into the live store.
+  useEffect(() => {
+    initExecutionListeners().catch((err) => {
+      console.error("Failed to init execution listeners:", err);
+    });
+    return () => {
+      void disposeExecutionListeners();
+    };
+  }, []);
+
   // Persist todos on change
   useEffect(() => {
     if (!isLoaded) return;
@@ -103,6 +145,29 @@ function App() {
     if (!isLoaded) return;
     saveTombstones(tombstones);
   }, [tombstones, isLoaded]);
+
+  // Persist agent conversation history (debounced) so it survives restarts.
+  useEffect(() => {
+    if (!isLoaded) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const flush = (transcripts: Record<string, TranscriptEntry[]>) => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        saveChatTranscripts(transcripts).catch((err) =>
+          console.error("Failed to persist chat transcripts:", err)
+        );
+      }, 400);
+    };
+    // Persist the current snapshot, then on every subsequent change.
+    flush(useExecutionStore.getState().transcripts);
+    const unsub = useExecutionStore.subscribe((state, prev) => {
+      if (state.transcripts !== prev.transcripts) flush(state.transcripts);
+    });
+    return () => {
+      if (timer) clearTimeout(timer);
+      unsub();
+    };
+  }, [isLoaded]);
 
   useEffect(() => {
     return () => {
@@ -237,9 +302,14 @@ function App() {
         </div>
       )}
 
-      <main className="app-main">
-        {isLoaded ? <TodoList /> : <LoadingSkeleton />}
-      </main>
+      <div className="app-body">
+        <aside className="app-sidebar">
+          {isLoaded ? <TodoList /> : <LoadingSkeleton />}
+        </aside>
+        <section className="app-chat">
+          <AgentChatPane />
+        </section>
+      </div>
 
       {copilotVisible && <CopilotPanel />}
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}

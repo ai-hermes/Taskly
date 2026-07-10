@@ -1,3 +1,4 @@
+mod agent;
 mod ocr;
 mod permissions;
 mod screenshot;
@@ -129,6 +130,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             capture_screenshot,
             get_active_window,
@@ -140,6 +143,15 @@ pub fn run() {
             check_screen_recording_permission,
             request_screen_recording_permission,
             open_screen_recording_settings,
+            agent::prepare_todo_workspace,
+            agent::copy_assets_to_workspace,
+            agent::execute_todo_once,
+            agent::start_agent_session,
+            agent::send_agent_message,
+            agent::respond_agent_ui,
+            agent::abort_agent_turn,
+            agent::finish_agent_session,
+            agent::cancel_agent_session,
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {

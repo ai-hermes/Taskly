@@ -1,20 +1,38 @@
 import { useState } from "react";
-import { useTodoStore } from "@/store";
+import { useTodoStore, useExecutionStore } from "@/store";
+import { startInteractiveRun, validateReadyToExecute } from "@/services/agent";
+import { WorkspacePrepareModal } from "./WorkspacePrepareModal";
 import type { TodoItem } from "@/types";
 import {
   CalendarBlank,
   Check,
+  CircleNotch,
   PencilSimple,
+  Play,
+  Toolbox,
   Trash,
   X,
 } from "@phosphor-icons/react";
 
 export function TodoList() {
   const { todos, toggleTodo, removeTodo, updateTodo } = useTodoStore();
+  const activeTodoId = useExecutionStore((s) => s.activeTodoId);
+  const setActiveTodo = useExecutionStore((s) => s.setActiveTodo);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [preparingId, setPreparingId] = useState<string | null>(null);
 
   const pending = todos.filter((t) => !t.done);
   const done = todos.filter((t) => t.done);
+  const preparingTodo = todos.find((t) => t.id === preparingId);
+
+  const runTodo = async (todo: TodoItem) => {
+    setActiveTodo(todo.id);
+    try {
+      await startInteractiveRun(todo.id);
+    } catch {
+      // Failure state is reflected in the store and console.
+    }
+  };
 
   return (
     <div className="todo-list-container">
@@ -42,8 +60,12 @@ export function TodoList() {
                   onCancel={() => setEditingId(null)}
                 />
               ) : (
-                <li key={todo.id} className="todo-item">
-                  <label className="todo-check">
+                <li
+                  key={todo.id}
+                  className={`todo-item ${activeTodoId === todo.id ? "active" : ""}`}
+                  onClick={() => setActiveTodo(todo.id)}
+                >
+                  <label className="todo-check" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={false}
@@ -63,8 +85,39 @@ export function TodoList() {
                         {new Date(todo.dueDate).toLocaleDateString("zh-CN")}
                       </span>
                     )}
+                    <ExecutionBadge todo={todo} onClick={() => setActiveTodo(todo.id)} />
                   </div>
-                  <div className="todo-actions">
+                  <div className="todo-actions" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className="todo-edit"
+                      onClick={() => setPreparingId(todo.id)}
+                      type="button"
+                      aria-label={`准备工作区 ${todo.title}`}
+                      title="准备工作区"
+                    >
+                      <Toolbox size={15} />
+                    </button>
+                    <button
+                      className="todo-edit todo-run"
+                      onClick={() => runTodo(todo)}
+                      type="button"
+                      disabled={
+                        validateReadyToExecute(todo.id) !== null ||
+                        todo.execution?.status === "running" ||
+                        todo.execution?.status === "waiting_input" ||
+                        todo.execution?.status === "validating"
+                      }
+                      aria-label={`一键执行 ${todo.title}`}
+                      title={validateReadyToExecute(todo.id) ?? "一键执行"}
+                    >
+                      {todo.execution?.status === "running" ||
+                      todo.execution?.status === "waiting_input" ||
+                      todo.execution?.status === "validating" ? (
+                        <CircleNotch size={15} className="spin" />
+                      ) : (
+                        <Play size={15} />
+                      )}
+                    </button>
                     <button
                       className="todo-edit"
                       onClick={() => setEditingId(todo.id)}
@@ -97,8 +150,12 @@ export function TodoList() {
           </div>
           <ul className="todo-list">
             {done.map((todo) => (
-              <li key={todo.id} className="todo-item done">
-                <label className="todo-check">
+              <li
+                key={todo.id}
+                className={`todo-item done ${activeTodoId === todo.id ? "active" : ""}`}
+                onClick={() => setActiveTodo(todo.id)}
+              >
+                <label className="todo-check" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
                     checked={true}
@@ -111,8 +168,18 @@ export function TodoList() {
                 </label>
                 <div className="todo-content">
                   <span className="todo-title">{todo.title}</span>
+                  {todo.completedBy === "agent" && (
+                    <span
+                      className="agent-done-badge"
+                      role="button"
+                      title={todo.execution?.summary}
+                      onClick={() => setActiveTodo(todo.id)}
+                    >
+                      Agent 完成
+                    </span>
+                  )}
                 </div>
-                <div className="todo-actions">
+                <div className="todo-actions" onClick={(e) => e.stopPropagation()}>
                   <button
                     className="todo-delete"
                     onClick={() => removeTodo(todo.id)}
@@ -127,7 +194,46 @@ export function TodoList() {
           </ul>
         </div>
       )}
+
+      {preparingTodo && (
+        <WorkspacePrepareModal
+          todo={preparingTodo}
+          onClose={() => setPreparingId(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function ExecutionBadge({
+  todo,
+  onClick,
+}: {
+  todo: TodoItem;
+  onClick: () => void;
+}) {
+  const status = todo.execution?.status;
+  if (!status || status === "idle") return null;
+  const labels: Record<string, string> = {
+    workspace_ready: "工作区就绪",
+    running: "Agent 执行中…",
+    waiting_input: "等待你的回复",
+    validating: "校验中…",
+    succeeded: "执行成功",
+    failed: "执行失败",
+  };
+  return (
+    <span
+      className={`exec-badge ${status}`}
+      role="button"
+      title={todo.execution?.error || todo.execution?.summary || "查看执行控制台"}
+      onClick={(e) => {
+        e.preventDefault();
+        onClick();
+      }}
+    >
+      {labels[status] ?? status}
+    </span>
   );
 }
 
