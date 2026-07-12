@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag/version for the release (e.g. v0.1.0)"
+        required: true
+        default: "v0.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS Apple Silicon (native arm64 runner -> native sidecar)
+          - os: macos-latest
+            label: macos-arm64
+            args: ""
+          # macOS Intel (native x64 runner -> native sidecar)
+          - os: macos-15-intel
+            label: macos-x64
+            args: ""
+          # Linux x64. Skip AppImage: linuxdeploy can't ldd the bun sidecar.
+          - os: ubuntu-22.04
+            label: linux-x64
+            args: "--bundles deb,rpm"
+          # Windows x64
+          - os: windows-latest
+            label: windows-x64
+            args: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Derive version from tag
+        shell: bash
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "Releasing tag $TAG"
+          node scripts/set-version.mjs "$TAG"
+
+      - name: Install Linux system dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libgtk-3-dev \
+            libsoup-3.0-dev \
+            libjavascriptcoregtk-4.1-dev
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Compile the pi-coding-agent sidecar for this runner's native target
+      # triple so `tauri build` finds binaries/pi-coding-agent-<triple> (and the
+      # pi-package resource) to embed. Each runner is its target arch, so no
+      # cross-compilation is needed.
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build pi sidecar
+        run: pnpm --filter @taskly/desktop build:sidecar
+
+      - name: Build & publish Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Don't strip the bun-compiled sidecar during Linux bundling.
+          NO_STRIP: true
+          # macOS code signing / notarization (optional; set as repo secrets).
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: "Taskly ${{ github.event.inputs.tag || github.ref_name }}"
+          releaseBody: "See the assets below to download and install this version."
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

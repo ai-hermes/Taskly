@@ -20,7 +20,9 @@ const PERSIST_SUBDIR: &str = "screenshots";
 const TEMP_TTL_SECS: u64 = 60 * 60;
 
 /// Directory for durable, todo-referenced screenshots.
-fn screenshots_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+fn screenshots_dir(
+    app: &tauri::AppHandle,
+) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
     use tauri::Manager;
     let dir = app.path().app_data_dir()?.join(PERSIST_SUBDIR);
     std::fs::create_dir_all(&dir)?;
@@ -38,9 +40,7 @@ pub fn persist_screenshot(
     if src_path.starts_with(&dir) {
         return Ok(src.to_string());
     }
-    let file_name = src_path
-        .file_name()
-        .ok_or("Invalid screenshot path")?;
+    let file_name = src_path.file_name().ok_or("Invalid screenshot path")?;
     let dest = dir.join(file_name);
     if !dest.exists() {
         std::fs::copy(src_path, &dest)?;
@@ -53,6 +53,7 @@ pub fn persist_screenshot(
 ///  - durable screenshots not referenced by any todo (`keep` paths), and
 ///  - stale `taskly_screenshot_*.png` temp files older than the TTL that are
 ///    not referenced either.
+///
 /// Returns the number of files removed.
 pub fn cleanup_screenshots(
     app: &tauri::AppHandle,
@@ -63,7 +64,11 @@ pub fn cleanup_screenshots(
 
     let keep_names: HashSet<OsString> = keep
         .iter()
-        .filter_map(|p| std::path::Path::new(p).file_name().map(|n| n.to_os_string()))
+        .filter_map(|p| {
+            std::path::Path::new(p)
+                .file_name()
+                .map(|n| n.to_os_string())
+        })
         .collect();
     let mut removed = 0usize;
 

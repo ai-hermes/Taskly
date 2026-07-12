@@ -67,7 +67,9 @@ pub fn is_whitelisted(app_name: &str, whitelist: &[String]) -> bool {
         .collect();
 
     if patterns.is_empty() {
-        return DEFAULT_WHITELIST.iter().any(|&name| app_name.contains(name));
+        return DEFAULT_WHITELIST
+            .iter()
+            .any(|&name| app_name.contains(name));
     }
 
     patterns.iter().any(|name| app_name.contains(name))
