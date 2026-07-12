@@ -40,6 +40,21 @@ async fn capture_screenshot(
 }
 
 #[tauri::command]
+async fn persist_screenshot(app: tauri::AppHandle, path: String) -> Result<String, String> {
+    screenshot::persist_screenshot(&app, &path)
+        .map_err(|e| format!("Persist screenshot failed: {}", e))
+}
+
+#[tauri::command]
+async fn cleanup_screenshots(
+    app: tauri::AppHandle,
+    keep_paths: Option<Vec<String>>,
+) -> Result<usize, String> {
+    screenshot::cleanup_screenshots(&app, &keep_paths.unwrap_or_default())
+        .map_err(|e| format!("Cleanup screenshots failed: {}", e))
+}
+
+#[tauri::command]
 fn check_screen_recording_permission() -> bool {
     let granted = permissions::has_screen_recording_permission();
     eprintln!("[permissions] screen recording granted = {}", granted);
@@ -134,6 +149,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             capture_screenshot,
+            persist_screenshot,
+            cleanup_screenshots,
             get_active_window,
             is_whitelisted_app,
             list_running_apps,

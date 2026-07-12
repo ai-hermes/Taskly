@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { TodoList } from "@/components/TodoList";
 import { Settings } from "@/components/Settings";
-import { CopilotPanel } from "@/components/CopilotPanel";
 import { AgentChatPane } from "@/components/AgentChatPane";
 import { PermissionGuide } from "@/components/PermissionGuide";
 import { useTodoStore, useConfigStore, useAppState, useExecutionStore } from "@/store";
@@ -27,8 +26,12 @@ import {
 } from "@/services/agent";
 import { showMainWindow } from "@/services/window";
 import { checkScreenRecordingPermission } from "@/services/permissions";
+import {
+  cleanupScreenshots,
+  persistEvidenceScreenshots,
+} from "@/services/screenshots";
 import type { TodoItem, TranscriptEntry, ToolCallEntry } from "@/types";
-import { GearSix, Pause, Play, Robot, Warning } from "@phosphor-icons/react";
+import { GearSix, Pause, Play, Warning } from "@phosphor-icons/react";
 
 /**
  * A live execution status (running/waiting_input/validating) persisted on disk
@@ -73,8 +76,6 @@ function App() {
   const {
     monitoring,
     setMonitoring,
-    copilotVisible,
-    setCopilotVisible,
     setLastOcrText,
     setLastMonitorError,
   } = useAppState();
@@ -92,6 +93,8 @@ function App() {
       .then(([savedTodos, savedTombstones, savedTranscripts, savedToolCalls]) => {
         if (savedTodos.length > 0) setTodos(reconcileStaleRuns(savedTodos));
         if (savedTombstones.length > 0) setTombstones(savedTombstones);
+        // Reap screenshots no todo references anymore (fire-and-forget).
+        void cleanupScreenshots(savedTodos);
         if (Object.keys(savedTranscripts).length > 0)
           useExecutionStore.getState().hydrateTranscripts(savedTranscripts);
         if (Object.keys(savedToolCalls).length > 0)
@@ -244,11 +247,17 @@ function App() {
     };
   }, [isLoaded, config.remindersEnabled]);
 
-  // Handle new todos found by monitor
+  // Handle new todos found by monitor: persist evidence screenshots to a
+  // durable location first so they survive OS temp cleanup, then add.
   const handleTodosFound = useCallback(
     (newTodos: TodoItem[]) => {
       const ttlMs = Math.max(0, config.dedupTombstoneTtlMinutes) * 60 * 1000;
-      addTodos(newTodos, ttlMs);
+      void persistEvidenceScreenshots(newTodos)
+        .then((persisted) => addTodos(persisted, ttlMs))
+        .catch((err) => {
+          console.error("Failed to persist evidence screenshots:", err);
+          addTodos(newTodos, ttlMs);
+        });
     },
     [addTodos, config.dedupTombstoneTtlMinutes]
   );
@@ -320,15 +329,6 @@ function App() {
               {monitoring ? <Pause size={16} weight="fill" /> : <Play size={16} weight="fill" />}
             </button>
             <button
-              className={`btn-icon has-tip ${copilotVisible ? "active" : ""}`}
-              onClick={() => setCopilotVisible(!copilotVisible)}
-              type="button"
-              aria-label="打开 Copilot"
-              data-tip="Copilot"
-            >
-              <Robot size={17} />
-            </button>
-            <button
               className="btn-icon has-tip"
               onClick={() => setShowSettings(true)}
               type="button"
@@ -345,7 +345,6 @@ function App() {
         </section>
       </div>
 
-      {copilotVisible && <CopilotPanel />}
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
       {showPermissionGuide && (
         <PermissionGuide

@@ -160,6 +160,61 @@ export function dedupTodos(
   return { added, liveTombstones };
 }
 
+/**
+ * Sweep near-duplicates out of the pending-confirmation section.
+ *
+ * A pending (not-done, reviewStatus === "pending_confirmation") todo is dropped
+ * when it exactly or fuzzily matches:
+ *  - any non-pending todo (confirmed or done), or
+ *  - an earlier-kept pending todo (first occurrence wins).
+ *
+ * Returns the original array reference when nothing was removed.
+ */
+export function dedupPendingTodos(
+  todos: TodoItem[],
+  threshold: number = SIMILARITY_THRESHOLD
+): TodoItem[] {
+  const isPending = (t: TodoItem) =>
+    !t.done && t.reviewStatus === "pending_confirmation";
+
+  const anchorFps = new Set<string>();
+  const anchorNorms: string[] = [];
+  for (const t of todos) {
+    if (!isPending(t)) {
+      anchorFps.add(t.fingerprint || fingerprint(t));
+      anchorNorms.push(normalizeTitle(t.title));
+    }
+  }
+
+  const keptPendingFps = new Set<string>();
+  const keptPendingNorms: string[] = [];
+  const result: TodoItem[] = [];
+  let removed = false;
+
+  for (const t of todos) {
+    if (!isPending(t)) {
+      result.push(t);
+      continue;
+    }
+    const fp = t.fingerprint || fingerprint(t);
+    const norm = normalizeTitle(t.title);
+    if (
+      anchorFps.has(fp) ||
+      keptPendingFps.has(fp) ||
+      fuzzyHit(norm, anchorNorms, threshold) ||
+      fuzzyHit(norm, keptPendingNorms, threshold)
+    ) {
+      removed = true;
+      continue;
+    }
+    keptPendingFps.add(fp);
+    keptPendingNorms.push(norm);
+    result.push(t);
+  }
+
+  return removed ? result : todos;
+}
+
 /** Build a tombstone record for a deleted todo. */
 export function makeTombstone(todo: TodoItem, now: number = Date.now()): Tombstone {
   return {

@@ -1,0 +1,94 @@
+/*
+ * Tailwind v4 + shadcn/ui entry.
+ *
+ * IMPORTANT: Tailwind's preflight (base reset) is intentionally NOT imported.
+ * This app ships a hand-authored design system in `global.css`; loading
+ * preflight would reset headings/lists/buttons/borders and break it. We only
+ * pull in the theme (design tokens) and utilities layers so shadcn components
+ * and Tailwind utility classes work while leaving existing styles untouched.
+ *
+ * shadcn semantic tokens are prefixed `--sh-*` and mapped onto the app's own
+ * design tokens (defined in global.css) via `@theme inline`, so shadcn
+ * components inherit the existing light/dark palette. Prefixing avoids
+ * colliding with app tokens that share names (e.g. `--accent`, `--radius-sm`).
+ */
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "tw-animate-css";
+
+/* Map shadcn's `dark:` variant onto the app's media-query-based dark mode. */
+@custom-variant dark (@media (prefers-color-scheme: dark));
+
+/*
+ * Minimal control reset for shadcn components only (scoped to `[data-slot]`).
+ * Preflight is intentionally not loaded, so native button/input chrome (the
+ * gray `ButtonFace` background, inner bevels) would otherwise leak through
+ * shadcn's utility-styled controls. This restores just that reset without
+ * touching the app's own buttons/inputs.
+ */
+@layer base {
+  [data-slot] button,
+  button[data-slot],
+  [data-slot] input,
+  input[data-slot],
+  [data-slot] select,
+  select[data-slot],
+  [data-slot] textarea,
+  textarea[data-slot] {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: transparent;
+    background-image: none;
+  }
+}
+
+:root {
+  --sh-radius: 11px;
+  --sh-background: var(--surface);
+  --sh-foreground: var(--text-primary);
+  --sh-card: var(--surface-raised);
+  --sh-card-foreground: var(--text-primary);
+  --sh-popover: var(--surface-raised);
+  --sh-popover-foreground: var(--text-primary);
+  --sh-primary: var(--accent);
+  --sh-primary-foreground: #ffffff;
+  --sh-secondary: var(--surface-subtle);
+  --sh-secondary-foreground: var(--text-primary);
+  --sh-muted: var(--surface-subtle);
+  --sh-muted-foreground: var(--text-tertiary);
+  --sh-accent: var(--surface-subtle);
+  --sh-accent-foreground: var(--text-primary);
+  --sh-destructive: var(--danger);
+  --sh-destructive-foreground: #ffffff;
+  --sh-border: var(--border);
+  --sh-input: var(--border-strong);
+  --sh-ring: var(--accent);
+}
+
+@theme inline {
+  --color-background: var(--sh-background);
+  --color-foreground: var(--sh-foreground);
+  --color-card: var(--sh-card);
+  --color-card-foreground: var(--sh-card-foreground);
+  --color-popover: var(--sh-popover);
+  --color-popover-foreground: var(--sh-popover-foreground);
+  --color-primary: var(--sh-primary);
+  --color-primary-foreground: var(--sh-primary-foreground);
+  --color-secondary: var(--sh-secondary);
+  --color-secondary-foreground: var(--sh-secondary-foreground);
+  --color-muted: var(--sh-muted);
+  --color-muted-foreground: var(--sh-muted-foreground);
+  --color-accent: var(--sh-accent);
+  --color-accent-foreground: var(--sh-accent-foreground);
+  --color-destructive: var(--sh-destructive);
+  --color-destructive-foreground: var(--sh-destructive-foreground);
+  --color-border: var(--sh-border);
+  --color-input: var(--sh-input);
+  --color-ring: var(--sh-ring);
+  --radius-sm: calc(var(--sh-radius) - 4px);
+  --radius-md: calc(var(--sh-radius) - 2px);
+  --radius-lg: var(--sh-radius);
+  --radius-xl: calc(var(--sh-radius) + 4px);
+}

@@ -7,6 +7,9 @@ export interface TodoItem {
   sourceText?: string;
   priority: number;
   dueDate?: string;
+  reviewStatus?: TodoReviewStatus;
+  todoKind?: TodoKind;
+  sourceEvidence?: TodoSourceEvidence;
   createdAt: string;
   updatedAt: string;
   /** Normalized-title (+ due-day) hash used for deduplication. */
@@ -17,6 +20,21 @@ export interface TodoItem {
   execution?: TodoExecutionRecord;
   /** How the todo was completed. */
   completedBy?: "manual" | "agent";
+}
+
+export type TodoReviewStatus = "confirmed" | "pending_confirmation";
+
+export type TodoKind = "actionable" | "notification";
+
+export interface OcrRegion {
+  text: string;
+  confidence: number;
+  box: number[][];
+}
+
+export interface TodoSourceEvidence {
+  screenshotPath?: string;
+  matchedRegions: OcrRegion[];
 }
 
 export type TodoExecutionStatus =
@@ -240,21 +258,37 @@ export interface Tombstone {
 export interface OcrResult {
   success: boolean;
   text: string;
-  details: Array<{
-    text: string;
-    confidence: number;
-    box: number[][];
-  }>;
+  details: OcrRegion[];
+  /** Pixel size of the recognized image (for relative-coord conversions). */
+  imageWidth?: number;
+  imageHeight?: number;
   error?: string;
+}
+
+export interface ExtractTodoOptions {
+  knownTitles?: string[];
+  screenshotPath?: string;
+  ocrDetails?: OcrRegion[];
 }
 
 export interface LLMProvider {
   name: string;
-  extractTodos(ocrText: string, knownTitles?: string[]): Promise<TodoItem[]>;
+  extractTodos(ocrText: string, options?: ExtractTodoOptions): Promise<TodoItem[]>;
+}
+
+/** Relative capture fence; all fields are fractions [0,1] of the screenshot. */
+export interface FenceRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface AppConfig {
   whitelist: string[];
+  /** Per-app capture fences keyed by whitelist app name; a fence is a set of
+   *  rectangles (OCR text is kept if it falls inside any of them). */
+  captureFences?: Record<string, FenceRect[]>;
   screenshotInterval: number; // seconds
   llmProvider: "openai";
   llmConfig: {
