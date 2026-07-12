@@ -25,8 +25,53 @@ export type TodoExecutionStatus =
   | "running"
   | "waiting_input"
   | "validating"
+  | "needs_review"
   | "succeeded"
   | "failed";
+
+/** Permission posture for a run, cycled with Shift+Tab (craft-style). */
+export type PermissionMode = "explore" | "ask" | "auto";
+
+/** Review dimension layered on top of execution status. */
+export type ReviewState = "needs_review" | "accepted";
+
+export type ToolCallStatus = "running" | "ok" | "error";
+
+/** A single tool invocation with its args, streamed output and final result. */
+export interface ToolCallEntry {
+  /** pi `toolCallId`, used to correlate start/update/end events. */
+  id: string;
+  name: string;
+  /** One-line human summary for the collapsed card header. */
+  argsSummary?: string;
+  /** Full argument object as sent to the tool. */
+  args?: unknown;
+  /** Accumulated (streaming) or final textual output. */
+  output?: string;
+  isError?: boolean;
+  status: ToolCallStatus;
+  ts: number;
+}
+
+export type FileDiffStatus = "added" | "modified" | "deleted" | "renamed";
+
+/** Per-file change for a run, parsed from `git diff`. */
+export interface FileDiff {
+  path: string;
+  oldPath?: string;
+  status: FileDiffStatus;
+  additions: number;
+  deletions: number;
+  /** Unified diff hunks for this file (empty for binary). */
+  patch: string;
+  binary?: boolean;
+}
+
+/** All file changes produced by a run/turn. */
+export interface RunDiff {
+  files: FileDiff[];
+  generatedAt: string;
+}
 
 export interface TodoWorkspaceAsset {
   id: string;
@@ -72,6 +117,12 @@ export interface TodoExecutionRecord {
   validationResults?: ValidationResult[];
   /** Multi-turn conversation transcript for interactive runs. */
   transcript?: TranscriptEntry[];
+  /** Permission posture the run was executed under. */
+  permissionMode?: PermissionMode;
+  /** Review dimension: set to needs_review after validations pass. */
+  reviewState?: ReviewState;
+  /** File changes captured from the workspace for this run. */
+  diff?: RunDiff;
 }
 
 /** One entry in an interactive run's conversation history. */
@@ -79,10 +130,12 @@ export interface TranscriptEntry {
   role: "user" | "assistant" | "system";
   text: string;
   ts: number;
-  /** Entry kind; plain chat text by default, "tool" for tool-call events. */
-  kind?: "text" | "tool";
+  /** Entry kind; plain chat text by default. */
+  kind?: "text" | "tool" | "thinking";
   /** Tool name when kind === "tool". */
   toolName?: string;
+  /** pi toolCallId when kind === "tool"; key into the toolCalls map. */
+  toolCallId?: string;
 }
 
 /** A structured event forwarded from the pi rpc session (raw event JSON). */
@@ -101,6 +154,18 @@ export interface AgentRpcEvent {
   toolCallId?: string;
   message?: unknown;
   error?: string;
+  /** Tool execution payloads (tool_execution_start/update/end). */
+  args?: unknown;
+  result?: unknown;
+  partialResult?: unknown;
+  isError?: boolean;
+  /** Streaming delta wrapper on message_update events. */
+  assistantMessageEvent?: {
+    type: string;
+    delta?: string;
+    content?: string;
+    [key: string]: unknown;
+  };
   /** Auto-retry bookkeeping (auto_retry_start / auto_retry_end). */
   attempt?: number;
   maxAttempts?: number;
@@ -205,6 +270,8 @@ export interface AppConfig {
   remindersEnabled: boolean;
   /** Custom agent command; empty string means use the bundled sidecar. */
   agentCommand: string;
+  /** Default permission posture for agent runs. */
+  agentPermissionMode: PermissionMode;
   /** Max seconds for a single agent run before it is killed. */
   agentTimeoutSec: number;
   /** Base dir for per-todo workspaces; empty means app data dir default. */

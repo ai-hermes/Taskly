@@ -75,7 +75,8 @@ pub struct ExecuteTodoRequest {
     /// Custom agent command; None/empty means use the bundled sidecar.
     pub agent_command: Option<String>,
     pub timeout_sec: u64,
-    pub safe_mode: bool,
+    #[serde(default = "default_permission_mode")]
+    pub permission_mode: String,
     pub validation_commands: Vec<String>,
     /// Model/API config reused from Taskly settings for the bundled agent.
     #[serde(default)]
@@ -240,6 +241,48 @@ fn find_pi_package_dir(exe_dir: &Path) -> Option<PathBuf> {
     candidates
         .into_iter()
         .find(|p| p.join("package.json").exists())
+}
+
+/// Default permission posture when a request omits it.
+fn default_permission_mode() -> String {
+    "ask".to_string()
+}
+
+/// Clamp a permission mode string to a known value.
+fn normalize_permission_mode(mode: &str) -> String {
+    match mode.trim().to_lowercase().as_str() {
+        "explore" => "explore".to_string(),
+        "auto" => "auto".to_string(),
+        _ => "ask".to_string(),
+    }
+}
+
+/// Locate the bundled Taskly permission-gate extension (ships inside pi-package).
+fn find_permission_gate_ext() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let exe_dir = exe.parent()?.to_path_buf();
+    let pkg = find_pi_package_dir(&exe_dir)?;
+    let p = pkg
+        .join("taskly-extensions")
+        .join("permission-gate.ts");
+    if p.exists() {
+        Some(p)
+    } else {
+        None
+    }
+}
+
+/// Build the extra CLI args (`-e <ext>`) and env vars that activate the
+/// permission gate for a run in the given mode.
+fn permission_gate_wiring(mode: &str) -> (Vec<String>, Vec<(String, String)>) {
+    let mode = normalize_permission_mode(mode);
+    let mut args = Vec::new();
+    if let Some(ext) = find_permission_gate_ext() {
+        args.push("-e".to_string());
+        args.push(ext.to_string_lossy().to_string());
+    }
+    let envs = vec![("TASKLY_PERMISSION_MODE".to_string(), mode)];
+    (args, envs)
 }
 
 /// Resolve the agent executable: custom command wins, else bundled sidecar.
@@ -524,7 +567,7 @@ async fn run_agent(
     prompt: &str,
     agent_command: Option<&str>,
     timeout_sec: u64,
-    safe_mode: bool,
+    permission_mode: &str,
     llm: Option<&AgentLlmConfig>,
 ) -> Result<Option<i32>, String> {
     let uses_custom = agent_command
@@ -546,11 +589,14 @@ async fn run_agent(
             }
         }
     }
-    let full_prompt = if safe_mode {
-        format!("{}{}", SAFE_MODE_PREAMBLE, prompt)
-    } else {
-        prompt.to_string()
-    };
+    // Activate the permission gate (Explore / Ask / Auto) for the bundled agent.
+    if !uses_custom {
+        let (mut gate_args, gate_envs) = permission_gate_wiring(permission_mode);
+        args.append(&mut gate_args);
+        envs.extend(gate_envs);
+    }
+    // Always prepend the safety guardrail preamble for the bundled agent.
+    let full_prompt = format!("{}{}", SAFE_MODE_PREAMBLE, prompt);
     // Non-interactive mode: process the prompt and exit.
     args.push("-p".into());
     args.push(full_prompt);
@@ -746,7 +792,7 @@ pub async fn execute_todo_once(
         &req.prompt,
         req.agent_command.as_deref(),
         req.timeout_sec,
-        req.safe_mode,
+        &req.permission_mode,
         req.llm.as_ref(),
     )
     .await;
@@ -849,7 +895,8 @@ pub struct StartSessionRequest {
     pub workdir: String,
     pub prompt: String,
     pub agent_command: Option<String>,
-    pub safe_mode: bool,
+    #[serde(default = "default_permission_mode")]
+    pub permission_mode: String,
     #[serde(default)]
     pub llm: Option<AgentLlmConfig>,
 }
@@ -1123,6 +1170,7 @@ fn resolve_rpc_invocation(
     app: &tauri::AppHandle,
     agent_command: Option<&str>,
     llm: Option<&AgentLlmConfig>,
+    permission_mode: &str,
 ) -> Result<AgentInvocation, String> {
     let uses_custom = agent_command.map(|c| !c.trim().is_empty()).unwrap_or(false);
     let AgentInvocation {
@@ -1141,6 +1189,10 @@ fn resolve_rpc_invocation(
                 envs.extend(llm_envs);
             }
         }
+        // Activate the permission gate (Explore / Ask / Auto).
+        let (mut gate_args, gate_envs) = permission_gate_wiring(permission_mode);
+        args.append(&mut gate_args);
+        envs.extend(gate_envs);
     }
     Ok(AgentInvocation {
         program,
@@ -1205,7 +1257,12 @@ pub async fn start_agent_session(
         program,
         args,
         envs,
-    } = resolve_rpc_invocation(&app, req.agent_command.as_deref(), req.llm.as_ref())?;
+    } = resolve_rpc_invocation(
+        &app,
+        req.agent_command.as_deref(),
+        req.llm.as_ref(),
+        &req.permission_mode,
+    )?;
 
     emit_phase(&app, &req.run_id, &req.todo_id, "preparing", None);
     let banner = format!("$ {} --mode rpc (cwd: {})", program, req.workdir);
@@ -1278,12 +1335,9 @@ pub async fn start_agent_session(
     };
     sessions().lock().await.insert(req.run_id.clone(), handle);
 
-    // Kick off the first turn with the safe-mode preamble.
-    let full_prompt = if req.safe_mode {
-        format!("{}{}", SAFE_MODE_PREAMBLE, req.prompt)
-    } else {
-        req.prompt.clone()
-    };
+    // Kick off the first turn with the safety guardrail preamble. Hard
+    // permission gating is enforced by the loaded permission-gate extension.
+    let full_prompt = format!("{}{}", SAFE_MODE_PREAMBLE, req.prompt);
     emit_phase(&app, &req.run_id, &req.todo_id, "agent_running", None);
     send_rpc(
         &req.run_id,
@@ -1326,7 +1380,13 @@ pub async fn respond_agent_ui(
     if cancelled.unwrap_or(false) {
         resp.insert("cancelled".into(), serde_json::json!(true));
     } else if let Some(c) = confirmed {
+        // Keep compatibility with agents that read either `confirmed` or
+        // generic string `value` for confirm prompts.
         resp.insert("confirmed".into(), serde_json::json!(c));
+        resp.insert(
+            "value".into(),
+            serde_json::json!(if c { "true" } else { "false" }),
+        );
     } else {
         resp.insert("value".into(), serde_json::json!(value.unwrap_or_default()));
     }

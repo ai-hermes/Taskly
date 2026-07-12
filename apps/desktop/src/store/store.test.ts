@@ -156,6 +156,7 @@ describe("interactive execution store", () => {
       uiRequests: {},
       streaming: {},
       waiting: {},
+      awaitingReply: {},
       activeTodoId: null,
     });
   });
@@ -189,10 +190,60 @@ describe("interactive execution store", () => {
     const st = useExecutionStore.getState();
     expect(st.streaming["a"]).toBe(false);
     expect(st.waiting["a"]).toBe(true);
+    // The reply ends with "?", so it reads as a genuine question → awaiting reply.
+    expect(st.awaitingReply["a"]).toBe(true);
     expect(st.streams["a"]).toBe("");
     expect(st.transcripts["a"]).toEqual([
       { role: "assistant", text: "选 A 还是 B?", ts: 3 },
     ]);
+  });
+
+  it("agent_end on a non-question turn is complete, not awaiting reply", () => {
+    const s = useExecutionStore.getState();
+    s.appendAgentEvent({
+      runId: "r1",
+      todoId: "a",
+      ts: 1,
+      event: { type: "agent_start" },
+    });
+    s.appendAgentEvent({
+      runId: "r1",
+      todoId: "a",
+      ts: 2,
+      event: {
+        type: "message_update",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "PPT 已生成，保存到 ~/Desktop/rl.pptx。" }],
+        },
+      },
+    });
+    s.appendAgentEvent({
+      runId: "r1",
+      todoId: "a",
+      ts: 3,
+      event: { type: "agent_end", messages: [] },
+    });
+    const st = useExecutionStore.getState();
+    expect(st.waiting["a"]).toBe(true);
+    // Turn finished with a statement, not a question → not blocked on the user.
+    expect(st.awaitingReply["a"]).toBe(false);
+  });
+
+  it("ignores echoed user/tool message events in the assistant stream", () => {
+    const s = useExecutionStore.getState();
+    // pi echoes the just-sent user reply back as a message event; it must not
+    // land in the assistant streaming buffer (which renders as an Agent bubble).
+    s.appendAgentEvent({
+      runId: "r1",
+      todoId: "a",
+      ts: 1,
+      event: {
+        type: "message_update",
+        message: { role: "user", content: [{ type: "text", text: "可以" }] },
+      },
+    });
+    expect(useExecutionStore.getState().streams["a"] ?? "").toBe("");
   });
 
   it("pushUserTurn appends a user turn and resumes streaming", () => {
@@ -361,7 +412,7 @@ describe("interactive execution store", () => {
     const kept = useExecutionStore.getState().transcripts["a"];
     expect(kept).toHaveLength(2);
     expect(kept[0].text).toBe("旧输出");
-    expect(kept[1]).toMatchObject({ role: "system", text: "—— 重新执行 ——" });
+    expect(kept[1]).toMatchObject({ role: "system", text: "重新执行" });
     expect(useExecutionStore.getState().streaming["a"]).toBe(false);
 
     s.resetRun("a");

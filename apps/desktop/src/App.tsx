@@ -17,6 +17,8 @@ import {
   saveNotifiedReminders,
   loadChatTranscripts,
   saveChatTranscripts,
+  loadToolCalls,
+  saveToolCalls,
 } from "@/services/storage";
 import { setDebuggerConsole } from "@/services/debugger";
 import {
@@ -25,12 +27,12 @@ import {
 } from "@/services/agent";
 import { showMainWindow } from "@/services/window";
 import { checkScreenRecordingPermission } from "@/services/permissions";
-import type { TodoItem, TranscriptEntry } from "@/types";
-import { GearSix, Pause, Play, Robot } from "@phosphor-icons/react";
+import type { TodoItem, TranscriptEntry, ToolCallEntry } from "@/types";
+import { GearSix, Pause, Play, Robot, Warning } from "@phosphor-icons/react";
 
 /**
  * A live execution status (running/waiting_input/validating) persisted on disk
- * is stale after a restart — the pi child process is long gone. Downgrade those
+ * is stale after a restart (the pi child process is long gone). Downgrade those
  * to a terminal "failed" so the chat pane offers "重新执行" instead of a live
  * composer whose messages would fail, while keeping the reviewable history.
  */
@@ -81,12 +83,19 @@ function App() {
 
   // Load saved todos on startup
   useEffect(() => {
-    Promise.all([loadTodos(), loadTombstones(), loadChatTranscripts()])
-      .then(([savedTodos, savedTombstones, savedTranscripts]) => {
+    Promise.all([
+      loadTodos(),
+      loadTombstones(),
+      loadChatTranscripts(),
+      loadToolCalls(),
+    ])
+      .then(([savedTodos, savedTombstones, savedTranscripts, savedToolCalls]) => {
         if (savedTodos.length > 0) setTodos(reconcileStaleRuns(savedTodos));
         if (savedTombstones.length > 0) setTombstones(savedTombstones);
         if (Object.keys(savedTranscripts).length > 0)
           useExecutionStore.getState().hydrateTranscripts(savedTranscripts);
+        if (Object.keys(savedToolCalls).length > 0)
+          useExecutionStore.getState().hydrateToolCalls(savedToolCalls);
       })
       .catch((err) => {
         console.error("Failed to load todos:", err);
@@ -162,6 +171,31 @@ function App() {
     flush(useExecutionStore.getState().transcripts);
     const unsub = useExecutionStore.subscribe((state, prev) => {
       if (state.transcripts !== prev.transcripts) flush(state.transcripts);
+    });
+    return () => {
+      if (timer) clearTimeout(timer);
+      unsub();
+    };
+  }, [isLoaded]);
+
+  // Persist tool-call details (args/output) alongside the transcript so tool
+  // cards keep their expandable body after a restart.
+  useEffect(() => {
+    if (!isLoaded) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const flush = (
+      toolCalls: Record<string, Record<string, ToolCallEntry>>
+    ) => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        saveToolCalls(toolCalls).catch((err) =>
+          console.error("Failed to persist tool calls:", err)
+        );
+      }, 400);
+    };
+    flush(useExecutionStore.getState().toolCalls);
+    const unsub = useExecutionStore.subscribe((state, prev) => {
+      if (state.toolCalls !== prev.toolCalls) flush(state.toolCalls);
     });
     return () => {
       if (timer) clearTimeout(timer);
@@ -261,50 +295,50 @@ function App() {
 
   return (
     <div className="app">
-      <header className="app-header">
-        <div className="brand">
-          <h1>Taskly</h1>
-          <span>本地识别聊天待办</span>
-        </div>
-        <div className="header-actions">
-          <button
-            className={`btn-monitor ${monitoring ? "active" : ""}`}
-            onClick={toggleMonitoring}
-            type="button"
-          >
-            {monitoring ? <Pause size={15} weight="fill" /> : <Play size={15} weight="fill" />}
-            <span>{monitoring ? "暂停监控" : "开始监控"}</span>
-          </button>
-          <button
-            className="btn-icon"
-            onClick={() => setCopilotVisible(!copilotVisible)}
-            type="button"
-            aria-label="打开 Copilot"
-            title="打开 Copilot"
-          >
-            <Robot size={18} />
-          </button>
-          <button
-            className="btn-icon"
-            onClick={() => setShowSettings(true)}
-            type="button"
-            aria-label="打开设置"
-            title="设置"
-          >
-            <GearSix size={18} />
-          </button>
-        </div>
-      </header>
-
       {!hasPermission && !showPermissionGuide && (
         <div className="permission-banner" onClick={() => setShowPermissionGuide(true)}>
-          ⚠️ 缺少屏幕录制权限，截图与识别将无法工作 —— 点击查看如何开启
+          <Warning size={15} weight="fill" />
+          <span>缺少屏幕录制权限，截图与识别将无法工作，点击查看如何开启</span>
         </div>
       )}
 
       <div className="app-body">
         <aside className="app-sidebar">
-          {isLoaded ? <TodoList /> : <LoadingSkeleton />}
+          <div className="sidebar-scroll">
+            {isLoaded ? <TodoList /> : <LoadingSkeleton />}
+          </div>
+          <div className="sidebar-controls">
+            <span className="sidebar-version">v{__APP_VERSION__}</span>
+            <div className="sidebar-controls-actions">
+            <button
+              className={`btn-icon has-tip ${monitoring ? "active" : ""}`}
+              onClick={toggleMonitoring}
+              type="button"
+              data-tip={monitoring ? "暂停监控" : "开始监控"}
+              aria-label={monitoring ? "暂停监控" : "开始监控"}
+            >
+              {monitoring ? <Pause size={16} weight="fill" /> : <Play size={16} weight="fill" />}
+            </button>
+            <button
+              className={`btn-icon has-tip ${copilotVisible ? "active" : ""}`}
+              onClick={() => setCopilotVisible(!copilotVisible)}
+              type="button"
+              aria-label="打开 Copilot"
+              data-tip="Copilot"
+            >
+              <Robot size={17} />
+            </button>
+            <button
+              className="btn-icon has-tip"
+              onClick={() => setShowSettings(true)}
+              type="button"
+              aria-label="打开设置"
+              data-tip="设置"
+            >
+              <GearSix size={17} />
+            </button>
+            </div>
+          </div>
         </aside>
         <section className="app-chat">
           <AgentChatPane />

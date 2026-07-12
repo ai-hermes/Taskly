@@ -17,10 +17,13 @@ import type {
   AgentUiRequestBody,
   TranscriptEntry,
   TodoItem,
+  ToolCallEntry,
 } from "@/types";
 import {
   ArrowsClockwise,
+  CaretRight,
   ChatsCircle,
+  ChatCircleDots,
   CheckCircle,
   CircleNotch,
   FileText,
@@ -38,6 +41,7 @@ import {
 
 const EMPTY_LOGS: ExecLogEvent[] = [];
 const EMPTY_TRANSCRIPT: TranscriptEntry[] = [];
+const EMPTY_TOOLS: Record<string, ToolCallEntry> = {};
 
 const ROLE_LABELS: Record<TranscriptEntry["role"], string> = {
   user: "你",
@@ -87,9 +91,12 @@ function ChatSession({ todo }: { todo: TodoItem }) {
     (s) => s.transcripts[todoId] ?? EMPTY_TRANSCRIPT
   );
   const stream = useExecutionStore((s) => s.streams[todoId] ?? "");
+  const liveThinking = useExecutionStore((s) => s.thinking[todoId] ?? "");
+  const toolCalls = useExecutionStore((s) => s.toolCalls[todoId] ?? EMPTY_TOOLS);
   const uiRequest = useExecutionStore((s) => s.uiRequests[todoId] ?? null);
   const streaming = useExecutionStore((s) => s.streaming[todoId] ?? false);
   const waiting = useExecutionStore((s) => s.waiting[todoId] ?? false);
+  const awaitingReply = useExecutionStore((s) => s.awaitingReply[todoId] ?? false);
 
   const [busy, setBusy] = useState(false);
   const [reply, setReply] = useState("");
@@ -112,7 +119,7 @@ function ChatSession({ todo }: { todo: TodoItem }) {
   useEffect(() => {
     const el = timelineRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [transcript, stream, uiRequest, execution?.validationResults]);
+  }, [transcript, stream, liveThinking, toolCalls, uiRequest, execution?.validationResults]);
 
   useEffect(() => {
     const el = logRef.current;
@@ -161,15 +168,24 @@ function ChatSession({ todo }: { todo: TodoItem }) {
 
   const hasTimeline = transcript.length > 0 || !!stream;
 
+  // Distinguish a genuine human-in-the-loop pause (the agent asked something, or
+  // raised a structured UI request) from a turn that simply finished. Both used
+  // to read as "等待你的回复", which made "done" indistinguishable from "blocked".
+  const turnComplete = waiting && !streaming && !uiRequest && !awaitingReply;
+  const statusLabel =
+    status === "waiting_input" && turnComplete
+      ? "本轮完成"
+      : STATUS_LABELS[status] ?? status;
+
   return (
     <div className="agent-chat-pane">
       <div className="chat-pane-header">
         <div className="chat-pane-heading">
           <h2 title={todo.title}>{todo.title}</h2>
           <div className="chat-pane-meta">
-            <span className={`exec-badge ${status}`}>
-              {isLive && <CircleNotch size={11} className="spin" />}
-              {STATUS_LABELS[status] ?? status}
+            <span className={`exec-badge ${status}${turnComplete ? " turn-complete" : ""}`}>
+              {streaming && <CircleNotch size={11} className="spin" />}
+              {statusLabel}
             </span>
             {execution?.runId && <span className="run-id">{execution.runId}</span>}
           </div>
@@ -206,6 +222,15 @@ function ChatSession({ todo }: { todo: TodoItem }) {
               <FileText size={16} />
             </button>
           )}
+          <button
+            type="button"
+            className={`btn-icon${showLogs ? " active" : ""}`}
+            onClick={() => setShowLogs((v) => !v)}
+            title={showLogs ? "隐藏原始日志" : "原始日志"}
+            aria-label="原始日志"
+          >
+            <Terminal size={16} />
+          </button>
         </div>
       </div>
 
@@ -231,11 +256,13 @@ function ChatSession({ todo }: { todo: TodoItem }) {
 
         {transcript.map((m, i) =>
           m.kind === "tool" ? (
-            <div key={i} className="chat-tool-entry">
-              <Wrench size={13} />
-              <span>调用工具</span>
-              <code>{m.toolName ?? m.text}</code>
-            </div>
+            <ToolCard
+              key={i}
+              entry={m.toolCallId ? toolCalls[m.toolCallId] : undefined}
+              fallbackName={m.toolName ?? m.text}
+            />
+          ) : m.kind === "thinking" ? (
+            <ThinkingBlock key={i} text={m.text} />
           ) : (
             <div key={i} className={`chat-bubble ${m.role}`}>
               <span className="chat-role">{ROLE_LABELS[m.role]}</span>
@@ -247,6 +274,8 @@ function ChatSession({ todo }: { todo: TodoItem }) {
             </div>
           )
         )}
+
+        {liveThinking && <ThinkingBlock text={liveThinking} live />}
 
         {stream && (
           <div className="chat-bubble assistant streaming">
@@ -308,121 +337,9 @@ function ChatSession({ todo }: { todo: TodoItem }) {
             {execution.summary}
           </p>
         )}
-      </div>
 
-      <div className="chat-dock">
-        {isLive && !uiRequest && (
-          <div className="chat-composer">
-            {waiting && (
-              <div className="composer-hint">
-                <CheckCircle size={13} weight="fill" /> Agent 正在等待你的回复
-              </div>
-            )}
-            <textarea
-              value={reply}
-              onChange={(e) => setReply(e.target.value)}
-              onKeyDown={(e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") sendReply();
-              }}
-              placeholder={
-                waiting
-                  ? "回复 Agent，或直接点「完成并校验」…（⌘/Ctrl+Enter 发送）"
-                  : "Agent 正在处理，可继续补充说明…"
-              }
-              rows={2}
-            />
-            <div className="composer-actions">
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={sendReply}
-                disabled={busy || !reply.trim()}
-              >
-                <PaperPlaneRight size={14} />
-                发送
-              </button>
-              {streaming && (
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={onAbort}
-                  disabled={busy}
-                  title="打断当前回合，但保留会话"
-                >
-                  <Stop size={14} />
-                  打断
-                </button>
-              )}
-              <button
-                type="button"
-                className="btn-secondary danger"
-                onClick={onCancel}
-                disabled={busy}
-                title="放弃本次执行"
-              >
-                <Prohibit size={14} />
-                放弃
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={onFinish}
-                disabled={busy}
-                title="结束会话并运行校验链"
-              >
-                <CheckCircle size={14} />
-                完成并校验
-              </button>
-            </div>
-          </div>
-        )}
-
-        {!isLive && (
-          <div className="chat-composer idle">
-            <div className="composer-actions">
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={onStart}
-                disabled={busy || notReady !== null}
-                title={notReady ?? undefined}
-              >
-                {status === "failed" || status === "succeeded" ? (
-                  <>
-                    <ArrowsClockwise size={14} />
-                    重新执行
-                  </>
-                ) : (
-                  <>
-                    <Play size={14} />
-                    开始执行
-                  </>
-                )}
-              </button>
-              {notReady && (
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => setPreparing(true)}
-                >
-                  <Toolbox size={14} />
-                  准备工作区
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        <button
-          type="button"
-          className="log-toggle"
-          onClick={() => setShowLogs((v) => !v)}
-        >
-          <Terminal size={13} />
-          {showLogs ? "隐藏原始日志" : "原始日志"} ({logs.length})
-        </button>
         {showLogs && (
-          <div className="log-view chat-log-dock" ref={logRef}>
+          <div className="log-view" ref={logRef}>
             {logs.length === 0 ? (
               <p className="log-empty">暂无日志</p>
             ) : (
@@ -436,8 +353,237 @@ function ChatSession({ todo }: { todo: TodoItem }) {
         )}
       </div>
 
+      <div className="chat-dock">
+        {isLive && !uiRequest && (
+          <div className="chat-composer">
+            <textarea
+              value={reply}
+              onChange={(e) => setReply(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") sendReply();
+              }}
+              placeholder={
+                waiting && awaitingReply
+                  ? "回复 Agent…（⌘/Ctrl+Enter 发送）"
+                  : turnComplete
+                    ? "可继续对话补充，或点击「完成并校验」结束…"
+                    : "Agent 正在处理，可继续补充说明…"
+              }
+              rows={3}
+            />
+            <div className="composer-toolbar">
+              <div className="composer-toolbar-left">
+                {waiting && awaitingReply ? (
+                  <span className="composer-status awaiting">
+                    <ChatCircleDots size={13} weight="fill" />
+                    Agent 有一个问题，等待你的回复
+                  </span>
+                ) : turnComplete ? (
+                  <span className="composer-status done">
+                    <CheckCircle size={13} weight="fill" />
+                    本轮已完成 · 可继续补充或点「完成并校验」结束
+                  </span>
+                ) : (
+                  <span className="composer-status">
+                    <CircleNotch size={12} className="spin" />
+                    Agent 正在处理…
+                  </span>
+                )}
+              </div>
+              <div className="composer-toolbar-right">
+                <button
+                  type="button"
+                  className="composer-btn"
+                  onClick={sendReply}
+                  disabled={busy || !reply.trim()}
+                  data-tip="发送 · ⌘/Ctrl+Enter"
+                  aria-label="发送"
+                >
+                  <PaperPlaneRight size={16} />
+                </button>
+                {streaming && (
+                  <button
+                    type="button"
+                    className="composer-btn"
+                    onClick={onAbort}
+                    disabled={busy}
+                    data-tip="打断当前回合"
+                    aria-label="打断"
+                  >
+                    <Stop size={16} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="composer-btn danger"
+                  onClick={onCancel}
+                  disabled={busy}
+                  data-tip="放弃本次执行"
+                  aria-label="放弃"
+                >
+                  <Prohibit size={16} />
+                </button>
+                <button
+                  type="button"
+                  className="composer-btn primary"
+                  onClick={onFinish}
+                  disabled={busy}
+                  data-tip="完成并校验"
+                  aria-label="完成并校验"
+                >
+                  <CheckCircle size={16} weight="fill" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!isLive && (
+          <div className="chat-composer idle">
+            <div className="composer-actions">
+              {notReady && (
+                <button
+                  type="button"
+                  className="composer-btn"
+                  onClick={() => setPreparing(true)}
+                  data-tip="准备工作区"
+                  aria-label="准备工作区"
+                >
+                  <Toolbox size={16} />
+                </button>
+              )}
+              <button
+                type="button"
+                className="composer-btn primary"
+                onClick={onStart}
+                disabled={busy || notReady !== null}
+                data-tip={
+                  notReady ??
+                  (status === "failed" || status === "succeeded"
+                    ? "重新执行"
+                    : "开始执行")
+                }
+                aria-label={
+                  status === "failed" || status === "succeeded"
+                    ? "重新执行"
+                    : "开始执行"
+                }
+              >
+                {status === "failed" || status === "succeeded" ? (
+                  <ArrowsClockwise size={16} />
+                ) : (
+                  <Play size={16} weight="fill" />
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+      </div>
+
       {preparing && (
         <WorkspacePrepareModal todo={todo} onClose={() => setPreparing(false)} />
+      )}
+    </div>
+  );
+}
+
+/** Collapsible thinking block (craft-style reasoning disclosure). */
+function ThinkingBlock({ text, live }: { text: string; live?: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`chat-thinking${live ? " live" : ""}`}>
+      <button
+        type="button"
+        className="chat-thinking-head"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <CaretRight size={12} className={`chat-caret${open ? " open" : ""}`} />
+        <span>{live ? "正在思考" : "思考过程"}</span>
+        {live && <CircleNotch size={11} className="spin" />}
+      </button>
+      {open && <div className="chat-thinking-body">{text}</div>}
+    </div>
+  );
+}
+
+/** Collapsible tool-call card: name + args summary + streamed/final output. */
+/**
+ * Condense a tool argument summary for the collapsed card head so the useful
+ * part stays visible: collapse the home dir to `~`, and shorten long paths to
+ * their last two segments (…/parent/file) so the filename isn't cut off by the
+ * trailing ellipsis. Works per whitespace token so paths embedded in a bash
+ * command are shortened too. The full value still shows when expanded.
+ */
+function shortenToolToken(tok: string): string {
+  let t = tok.replace(/^\/(?:Users|home)\/[^/]+\//, "~/");
+  if (t.includes("/") && t.length > 40) {
+    const hadTrailing = /\/$/.test(t);
+    const segs = t.split("/").filter(Boolean);
+    if (segs.length > 2) {
+      t = "…/" + segs.slice(-2).join("/") + (hadTrailing ? "/" : "");
+    }
+  }
+  return t;
+}
+
+function shortenToolSummary(s: string): string {
+  if (!s) return "";
+  if (!/\s/.test(s)) return shortenToolToken(s);
+  return s
+    .split(/(\s+)/)
+    .map((p) => (/^\s+$/.test(p) ? p : shortenToolToken(p)))
+    .join("");
+}
+
+function ToolCard({
+  entry,
+  fallbackName,
+}: {
+  entry?: ToolCallEntry;
+  fallbackName: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const name = entry?.name ?? fallbackName;
+  const status = entry?.status ?? "ok";
+  const summary = entry?.argsSummary ?? "";
+  const headSummary = shortenToolSummary(summary);
+  const output = entry?.output ?? "";
+  const hasBody = !!(summary || output);
+
+  return (
+    <div className={`chat-tool-card ${status}`}>
+      <button
+        type="button"
+        className="chat-tool-head"
+        onClick={() => hasBody && setOpen((v) => !v)}
+        disabled={!hasBody}
+      >
+        {hasBody && (
+          <CaretRight size={12} className={`chat-caret${open ? " open" : ""}`} />
+        )}
+        <Wrench size={13} />
+        <code className="chat-tool-name">{name}</code>
+        {headSummary && (
+          <span className="chat-tool-summary" title={summary}>
+            {headSummary}
+          </span>
+        )}
+        <span className="chat-tool-status">
+          {status === "running" ? (
+            <CircleNotch size={12} className="spin" />
+          ) : status === "error" ? (
+            <XCircle size={13} weight="fill" />
+          ) : (
+            <CheckCircle size={13} weight="fill" />
+          )}
+        </span>
+      </button>
+      {open && hasBody && (
+        <div className="chat-tool-body">
+          {summary && <pre className="chat-tool-args">{summary}</pre>}
+          {output && <pre className="chat-tool-output">{output}</pre>}
+        </div>
       )}
     </div>
   );
