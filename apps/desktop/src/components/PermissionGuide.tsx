@@ -1,10 +1,21 @@
 import { useState } from "react";
-import { LockKey } from "@phosphor-icons/react";
+import { LockKeyholeIcon } from "lucide-react";
 import {
-  requestScreenRecordingPermission,
-  openScreenRecordingSettings,
   checkScreenRecordingPermission,
+  openScreenRecordingSettings,
+  requestScreenRecordingPermission,
 } from "@/services/permissions";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Props {
   onGranted: () => void;
@@ -37,18 +48,18 @@ export function PermissionGuide({ onGranted, onDismiss }: Props) {
   };
 
   return (
-    <div className="permission-guide">
-      <div className="permission-card">
-        <div className="permission-icon">
-          <LockKey size={26} weight="duotone" />
-        </div>
-        <h2>需要「屏幕录制」权限</h2>
-        <p>
-          Taskly 需要「屏幕录制 / Screen &amp; System Audio Recording」权限，
-          才能截取微信窗口并识别其中的待办事项。
-          <br />
-          所有截图与识别都在本地完成，不会上传。
-        </p>
+    <Dialog open onOpenChange={(open) => !open && onDismiss()}>
+      <DialogContent className="permission-card max-w-xl">
+        <DialogHeader>
+          <div className="permission-icon">
+            <LockKeyholeIcon />
+          </div>
+          <DialogTitle>需要「屏幕录制」权限</DialogTitle>
+          <DialogDescription>
+            Taskly 需要「屏幕录制 / Screen &amp; System Audio Recording」权限，
+            才能截取微信窗口并识别其中的待办事项。所有截图与识别都在本地完成，不会上传。
+          </DialogDescription>
+        </DialogHeader>
 
         <ol className="permission-steps">
           <li>点击下方「授予权限」，在弹窗中允许 Taskly</li>
@@ -56,35 +67,39 @@ export function PermissionGuide({ onGranted, onDismiss }: Props) {
             若未弹窗，点击「打开系统设置」，在
             <b>隐私与安全性 → 屏幕录制</b>中勾选 Taskly
           </li>
-          <li>授权后可能需要<b>重启 Taskly</b>才能生效</li>
+          <li>
+            授权后可能需要<b>重启 Taskly</b>才能生效
+          </li>
         </ol>
 
-        <div className="permission-actions">
-          <button
-            className="btn-primary"
-            onClick={handleRequest}
-            disabled={requesting}
-          >
-            {requesting ? "请求中..." : "授予权限"}
-          </button>
-          <button className="btn-secondary" onClick={openScreenRecordingSettings}>
-            打开系统设置
-          </button>
-          <button className="btn-secondary" onClick={handleRecheck}>
-            我已授权，重新检查
-          </button>
-        </div>
-
         {prompted && (
-          <p className="permission-hint">
-            如果仍未生效，请在系统设置中确认已勾选 Taskly，并重启应用。
-          </p>
+          <Alert>
+            <AlertDescription>
+              如果仍未生效，请在系统设置中确认已勾选 Taskly，并重启应用。
+            </AlertDescription>
+          </Alert>
         )}
 
-        <button className="permission-skip" onClick={onDismiss}>
-          稍后再说
-        </button>
-      </div>
-    </div>
+        <DialogFooter className="permission-actions">
+          <Button type="button" variant="outline" onClick={onDismiss}>
+            稍后再说
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={openScreenRecordingSettings}
+          >
+            打开系统设置
+          </Button>
+          <Button type="button" variant="outline" onClick={handleRecheck}>
+            我已授权，重新检查
+          </Button>
+          <Button type="button" onClick={handleRequest} disabled={requesting}>
+            {requesting && <Spinner data-icon="inline-start" />}
+            {requesting ? "请求中..." : "授予权限"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
