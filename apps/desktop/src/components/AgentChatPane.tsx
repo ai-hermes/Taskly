@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState, type ComponentProps, type ReactNode } from "react";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useExecutionStore, useTodoStore } from "@/store";
@@ -21,24 +21,64 @@ import type {
   ToolCallEntry,
 } from "@/types";
 import {
-  ArrowsClockwise,
-  CaretRight,
-  ChatsCircle,
-  ChatCircleDots,
-  CheckCircle,
-  CircleNotch,
-  FileText,
-  FolderOpen,
-  PaperPlaneRight,
-  Play,
-  Prohibit,
-  Stop,
-  Terminal,
-  Toolbox,
-  Warning,
-  Wrench,
-  XCircle,
-} from "@phosphor-icons/react";
+  BanIcon,
+  BotMessageSquareIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  CheckCircleIcon,
+  FileTextIcon,
+  FolderOpenIcon,
+  MessageCircleQuestionIcon,
+  PlayIcon,
+  RefreshCwIcon,
+  SendIcon,
+  SquareTerminalIcon,
+  StopCircleIcon,
+  ToolboxIcon,
+  TriangleAlertIcon,
+  WrenchIcon,
+  XCircleIcon,
+} from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Bubble, BubbleContent } from "@/components/ui/bubble";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Input } from "@/components/ui/input";
+import {
+  InputGroup,
+  InputGroupTextarea,
+} from "@/components/ui/input-group";
+import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker";
+import {
+  Message,
+  MessageContent,
+  MessageHeader,
+} from "@/components/ui/message";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@/components/ui/message-scroller";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const EMPTY_LOGS: ExecLogEvent[] = [];
 const EMPTY_TRANSCRIPT: TranscriptEntry[] = [];
@@ -60,6 +100,38 @@ const STATUS_LABELS: Record<string, string> = {
   failed: "执行失败",
 };
 
+function ChatIconButton({
+  children,
+  disabled,
+  label,
+  onClick,
+  variant = "ghost",
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+  label: string;
+  onClick: () => void;
+  variant?: ComponentProps<typeof Button>["variant"];
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          aria-label={label}
+          disabled={disabled}
+          onClick={onClick}
+          size="icon-sm"
+          type="button"
+          variant={variant}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function AgentChatPane() {
   const activeTodoId = useExecutionStore((s) => s.activeTodoId);
   const todo = useTodoStore((s) =>
@@ -69,15 +141,17 @@ export function AgentChatPane() {
   if (!activeTodoId || !todo) {
     return (
       <div className="agent-chat-pane empty">
-        <div className="chat-empty-state">
-          <ChatsCircle size={40} weight="duotone" />
-          <h3>Agent 会话</h3>
-          <p>
-            在左侧选择一个待办即可查看或开始 Agent 执行会话。
-            <br />
-            执行过程支持多轮对话：Agent 提问时你可以直接回复。
-          </p>
-        </div>
+        <Empty className="chat-empty-state">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <BotMessageSquareIcon />
+            </EmptyMedia>
+            <EmptyTitle>Agent 会话</EmptyTitle>
+            <EmptyDescription>
+              在左侧选择一个待办即可查看或开始 Agent 执行会话。执行过程支持多轮对话：Agent 提问时你可以直接回复。
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       </div>
     );
   }
@@ -103,8 +177,6 @@ function ChatSession({ todo }: { todo: TodoItem }) {
   const [reply, setReply] = useState("");
   const [showLogs, setShowLogs] = useState(false);
   const [preparing, setPreparing] = useState(false);
-  const timelineRef = useRef<HTMLDivElement>(null);
-  const logRef = useRef<HTMLDivElement>(null);
 
   const execution = todo.execution;
   const status = execution?.status ?? "idle";
@@ -118,16 +190,6 @@ function ChatSession({ todo }: { todo: TodoItem }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [todoId, todo.workspace]
   );
-
-  useEffect(() => {
-    const el = timelineRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [transcript, stream, liveThinking, toolCalls, uiRequest, execution?.validationResults]);
-
-  useEffect(() => {
-    const el = logRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [logs, showLogs]);
 
   const guarded = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -186,265 +248,364 @@ function ChatSession({ todo }: { todo: TodoItem }) {
         <div className="chat-pane-heading">
           <h2 title={todo.title}>{todo.title}</h2>
           <div className="chat-pane-meta">
-            <span className={`exec-badge ${status}${turnComplete ? " turn-complete" : ""}`}>
-              {streaming && <CircleNotch size={11} className="spin" />}
+            <Badge
+              className={`exec-badge ${status}${turnComplete ? " turn-complete" : ""}`}
+              variant={status === "failed" ? "destructive" : "secondary"}
+            >
+              {streaming && <Spinner data-icon="inline-start" />}
               {statusLabel}
-            </span>
-            {execution?.runId && <span className="run-id">{execution.runId}</span>}
+            </Badge>
+            {execution?.runId && <Badge variant="outline">{execution.runId}</Badge>}
           </div>
         </div>
         {!isPending && (
-        <div className="chat-pane-tools">
-          {actionable && (
-            <button
-              type="button"
-              className="btn-icon"
-              onClick={() => setPreparing(true)}
-              title="准备工作区"
-              aria-label="准备工作区"
+          <div className="chat-pane-tools">
+            {actionable && (
+              <ChatIconButton
+                label="准备工作区"
+                onClick={() => setPreparing(true)}
+              >
+                <ToolboxIcon />
+              </ChatIconButton>
+            )}
+            {todo.workspace && (
+              <ChatIconButton label="打开工作区目录" onClick={openWorkspace}>
+                <FolderOpenIcon />
+              </ChatIconButton>
+            )}
+            {execution?.logFilePath && (
+              <ChatIconButton label="打开日志文件" onClick={openLog}>
+                <FileTextIcon />
+              </ChatIconButton>
+            )}
+            <ChatIconButton
+              label={showLogs ? "隐藏原始日志" : "原始日志"}
+              onClick={() => setShowLogs((v) => !v)}
+              variant={showLogs ? "secondary" : "ghost"}
             >
-              <Toolbox size={16} />
-            </button>
-          )}
-          {todo.workspace && (
-            <button
-              type="button"
-              className="btn-icon"
-              onClick={openWorkspace}
-              title="打开工作区目录"
-              aria-label="打开工作区目录"
-            >
-              <FolderOpen size={16} />
-            </button>
-          )}
-          {execution?.logFilePath && (
-            <button
-              type="button"
-              className="btn-icon"
-              onClick={openLog}
-              title="打开日志文件"
-              aria-label="打开日志文件"
-            >
-              <FileText size={16} />
-            </button>
-          )}
-          <button
-            type="button"
-            className={`btn-icon${showLogs ? " active" : ""}`}
-            onClick={() => setShowLogs((v) => !v)}
-            title={showLogs ? "隐藏原始日志" : "原始日志"}
-            aria-label="原始日志"
-          >
-            <Terminal size={16} />
-          </button>
-        </div>
+              <SquareTerminalIcon />
+            </ChatIconButton>
+          </div>
         )}
       </div>
       <SourceEvidenceCard todo={todo} />
 
       {!isPending && (
         <>
-      <div className="chat-timeline" ref={timelineRef}>
-        {!hasTimeline && (
-          <div className="chat-timeline-empty">
-            {isLive ? (
-              <p>等待 Agent 输出…</p>
-            ) : !actionable ? (
-              <p>该事项被归类为仅通知，已隐藏执行入口。</p>
-            ) : status === "idle" || status === "workspace_ready" ? (
-              <p>
-                点击下方「开始执行」，Agent 将在工作区内执行该待办。
-                {notReady && (
-                  <span className="chat-hint-warning">
-                    <Warning size={13} weight="fill" /> {notReady}
-                  </span>
-                )}
-              </p>
-            ) : (
-              <p>{execution?.summary || "暂无对话记录"}</p>
-            )}
-          </div>
-        )}
-
-        {transcript.map((m, i) =>
-          m.kind === "tool" ? (
-            <ToolCard
-              key={i}
-              entry={m.toolCallId ? toolCalls[m.toolCallId] : undefined}
-              fallbackName={m.toolName ?? m.text}
-            />
-          ) : m.kind === "thinking" ? (
-            <ThinkingBlock key={i} text={m.text} />
-          ) : (
-            <div key={i} className={`chat-bubble ${m.role}`}>
-              <span className="chat-role">{ROLE_LABELS[m.role]}</span>
-              {m.role === "assistant" ? (
-                <Markdown text={m.text} />
-              ) : (
-                <div className="chat-text">{m.text}</div>
-              )}
-            </div>
-          )
-        )}
-
-        {liveThinking && <ThinkingBlock text={liveThinking} live />}
-
-        {stream && (
-          <div className="chat-bubble assistant streaming">
-            <span className="chat-role">
-              {ROLE_LABELS.assistant}
-              {streaming && <CircleNotch size={11} className="spin" />}
-            </span>
-            <Markdown text={stream} />
-          </div>
-        )}
-
-        {isLive && uiRequest && (
-          <UiRequestCard request={uiRequest} disabled={busy} onAnswer={answer} />
-        )}
-
-        {execution?.validationResults && execution.validationResults.length > 0 && (
-          <div className="validation-list chat-card">
-            <h4>校验结果</h4>
-            {execution.validationResults.map((v, i) => (
-              <details key={i} className={`validation-item ${v.ok ? "ok" : "fail"}`}>
-                <summary>
-                  {v.ok ? (
-                    <CheckCircle size={13} weight="fill" />
-                  ) : (
-                    <XCircle size={13} weight="fill" />
+          <MessageScrollerProvider autoScroll>
+            <MessageScroller className="chat-timeline">
+              <MessageScrollerViewport>
+                <MessageScrollerContent>
+                  {!hasTimeline && (
+                    <MessageScrollerItem messageId="empty">
+                      <Empty className="chat-timeline-empty">
+                        <EmptyHeader>
+                          <EmptyTitle>
+                            {isLive
+                              ? "等待 Agent 输出…"
+                              : !actionable
+                                ? "仅通知事项"
+                                : status === "idle" || status === "workspace_ready"
+                                  ? "可以开始执行"
+                                  : "暂无对话记录"}
+                          </EmptyTitle>
+                          <EmptyDescription>
+                            {isLive
+                              ? "Agent 正在准备输出。"
+                              : !actionable
+                                ? "该事项被归类为仅通知，已隐藏执行入口。"
+                                : status === "idle" || status === "workspace_ready"
+                                  ? "点击下方「开始执行」，Agent 将在工作区内执行该待办。"
+                                  : execution?.summary || "暂无对话记录"}
+                          </EmptyDescription>
+                        </EmptyHeader>
+                      </Empty>
+                      {notReady && (
+                        <Alert variant="destructive" className="chat-hint-warning">
+                          <TriangleAlertIcon />
+                          <AlertDescription>{notReady}</AlertDescription>
+                        </Alert>
+                      )}
+                    </MessageScrollerItem>
                   )}
-                  <code>{v.command}</code>
-                  <span>
-                    exit {v.exitCode} · {(v.durationMs / 1000).toFixed(1)}s
-                  </span>
-                </summary>
-                {v.stdoutTail && (
-                  <>
-                    <span className="validation-stream-label">stdout</span>
-                    <pre>{v.stdoutTail}</pre>
-                  </>
-                )}
-                {v.stderrTail && (
-                  <>
-                    <span className="validation-stream-label">stderr</span>
-                    <pre className="stderr">{v.stderrTail}</pre>
-                  </>
-                )}
-              </details>
-            ))}
-          </div>
-        )}
 
-        {status === "failed" && execution?.error && (
-          <p className="execution-error chat-card">
-            <Warning size={14} weight="fill" />
-            {execution.error}
-          </p>
-        )}
+                  {transcript.map((message, index) => (
+                    <MessageScrollerItem
+                      key={`${message.role}-${message.kind}-${index}`}
+                      messageId={`${todoId}-${index}`}
+                      scrollAnchor={message.role === "user"}
+                    >
+                      {message.kind === "tool" ? (
+                        <ToolCard
+                          entry={
+                            message.toolCallId
+                              ? toolCalls[message.toolCallId]
+                              : undefined
+                          }
+                          fallbackName={message.toolName ?? message.text}
+                        />
+                      ) : message.kind === "thinking" ? (
+                        <ThinkingBlock text={message.text} />
+                      ) : (
+                        <Message
+                          align={message.role === "user" ? "end" : "start"}
+                        >
+                          <MessageContent>
+                            <MessageHeader>
+                              {ROLE_LABELS[message.role]}
+                            </MessageHeader>
+                            <Bubble
+                              align={message.role === "user" ? "end" : "start"}
+                              variant={
+                                message.role === "user"
+                                  ? "default"
+                                  : message.role === "system"
+                                    ? "outline"
+                                    : "secondary"
+                              }
+                            >
+                              <BubbleContent>
+                                {message.role === "assistant" ? (
+                                  <Markdown text={message.text} />
+                                ) : (
+                                  <div className="chat-text">{message.text}</div>
+                                )}
+                              </BubbleContent>
+                            </Bubble>
+                          </MessageContent>
+                        </Message>
+                      )}
+                    </MessageScrollerItem>
+                  ))}
 
-        {status === "succeeded" && execution?.summary && (
-          <p className="execution-success chat-card">
-            <CheckCircle size={14} weight="fill" />
-            {execution.summary}
-          </p>
-        )}
+                  {liveThinking && (
+                    <MessageScrollerItem messageId={`${todoId}-thinking`}>
+                      <ThinkingBlock text={liveThinking} live />
+                    </MessageScrollerItem>
+                  )}
 
-        {showLogs && (
-          <div className="log-view" ref={logRef}>
-            {logs.length === 0 ? (
-              <p className="log-empty">暂无日志</p>
-            ) : (
-              logs.map((l, i) => (
-                <div key={i} className={`log-line ${l.stream}`}>
-                  {l.line}
-                </div>
-              ))
-            )}
-          </div>
-        )}
-      </div>
+                  {stream && (
+                    <MessageScrollerItem messageId={`${todoId}-stream`}>
+                      <Message align="start">
+                        <MessageContent>
+                          <MessageHeader>
+                            {ROLE_LABELS.assistant}
+                            {streaming && <Spinner data-icon="inline-end" />}
+                          </MessageHeader>
+                          <Bubble variant="secondary">
+                            <BubbleContent>
+                              <Markdown text={stream} />
+                            </BubbleContent>
+                          </Bubble>
+                        </MessageContent>
+                      </Message>
+                    </MessageScrollerItem>
+                  )}
+
+                  {isLive && uiRequest && (
+                    <MessageScrollerItem messageId={`${todoId}-ui-request`}>
+                      <UiRequestCard
+                        request={uiRequest}
+                        disabled={busy}
+                        onAnswer={answer}
+                      />
+                    </MessageScrollerItem>
+                  )}
+
+                  {execution?.validationResults &&
+                    execution.validationResults.length > 0 && (
+                      <MessageScrollerItem messageId={`${todoId}-validation`}>
+                        <Card className="validation-list chat-card">
+                          <CardHeader>
+                            <CardTitle>校验结果</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <Accordion type="multiple">
+                              {execution.validationResults.map((result, index) => (
+                                <AccordionItem
+                                  key={`${result.command}-${index}`}
+                                  value={`validation-${index}`}
+                                >
+                                  <AccordionTrigger>
+                                    <span className="flex min-w-0 items-center gap-2">
+                                      {result.ok ? (
+                                        <CheckCircleIcon />
+                                      ) : (
+                                        <XCircleIcon />
+                                      )}
+                                      <code>{result.command}</code>
+                                      <Badge
+                                        variant={
+                                          result.ok ? "secondary" : "destructive"
+                                        }
+                                      >
+                                        exit {result.exitCode} ·{" "}
+                                        {(result.durationMs / 1000).toFixed(1)}s
+                                      </Badge>
+                                    </span>
+                                  </AccordionTrigger>
+                                  <AccordionContent>
+                                    {result.stdoutTail && (
+                                      <>
+                                        <span className="validation-stream-label">
+                                          stdout
+                                        </span>
+                                        <pre>{result.stdoutTail}</pre>
+                                      </>
+                                    )}
+                                    {result.stderrTail && (
+                                      <>
+                                        <span className="validation-stream-label">
+                                          stderr
+                                        </span>
+                                        <pre className="stderr">
+                                          {result.stderrTail}
+                                        </pre>
+                                      </>
+                                    )}
+                                  </AccordionContent>
+                                </AccordionItem>
+                              ))}
+                            </Accordion>
+                          </CardContent>
+                        </Card>
+                      </MessageScrollerItem>
+                    )}
+
+                  {status === "failed" && execution?.error && (
+                    <MessageScrollerItem messageId={`${todoId}-error`}>
+                      <Alert variant="destructive" className="execution-error chat-card">
+                        <TriangleAlertIcon />
+                        <AlertDescription>{execution.error}</AlertDescription>
+                      </Alert>
+                    </MessageScrollerItem>
+                  )}
+
+                  {status === "succeeded" && execution?.summary && (
+                    <MessageScrollerItem messageId={`${todoId}-success`}>
+                      <Alert className="execution-success chat-card">
+                        <CheckCircleIcon />
+                        <AlertDescription>{execution.summary}</AlertDescription>
+                      </Alert>
+                    </MessageScrollerItem>
+                  )}
+
+                  {showLogs && (
+                    <MessageScrollerItem messageId={`${todoId}-logs`}>
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>原始日志</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ScrollArea className="log-view">
+                            {logs.length === 0 ? (
+                              <Empty className="log-empty">
+                                <EmptyHeader>
+                                  <EmptyTitle>暂无日志</EmptyTitle>
+                                </EmptyHeader>
+                              </Empty>
+                            ) : (
+                              logs.map((log, index) => (
+                                <div
+                                  key={`${index}-${log.stream}`}
+                                  className={`log-line ${log.stream}`}
+                                >
+                                  {log.line}
+                                </div>
+                              ))
+                            )}
+                          </ScrollArea>
+                        </CardContent>
+                      </Card>
+                    </MessageScrollerItem>
+                  )}
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
+              <MessageScrollerButton />
+            </MessageScroller>
+          </MessageScrollerProvider>
 
       <div className="chat-dock">
         {isLive && !uiRequest && (
           <div className="chat-composer">
-            <textarea
-              value={reply}
-              onChange={(e) => setReply(e.target.value)}
-              onKeyDown={(e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") sendReply();
-              }}
-              placeholder={
-                waiting && awaitingReply
-                  ? "回复 Agent…（⌘/Ctrl+Enter 发送）"
-                  : turnComplete
-                    ? "可继续对话补充，或点击「完成并校验」结束…"
-                    : "Agent 正在处理，可继续补充说明…"
-              }
-              rows={3}
-            />
+            <InputGroup>
+              <InputGroupTextarea
+                value={reply}
+                onChange={(event) => setReply(event.target.value)}
+                onKeyDown={(event) => {
+                  if ((event.metaKey || event.ctrlKey) && event.key === "Enter")
+                    sendReply();
+                }}
+                placeholder={
+                  waiting && awaitingReply
+                    ? "回复 Agent…（⌘/Ctrl+Enter 发送）"
+                    : turnComplete
+                      ? "可继续对话补充，或点击「完成并校验」结束…"
+                      : "Agent 正在处理，可继续补充说明…"
+                }
+                rows={3}
+              />
+            </InputGroup>
             <div className="composer-toolbar">
               <div className="composer-toolbar-left">
                 {waiting && awaitingReply ? (
-                  <span className="composer-status awaiting">
-                    <ChatCircleDots size={13} weight="fill" />
-                    Agent 有一个问题，等待你的回复
-                  </span>
+                  <Marker className="composer-status awaiting">
+                    <MarkerIcon>
+                      <MessageCircleQuestionIcon />
+                    </MarkerIcon>
+                    <MarkerContent>Agent 有一个问题，等待你的回复</MarkerContent>
+                  </Marker>
                 ) : turnComplete ? (
-                  <span className="composer-status done">
-                    <CheckCircle size={13} weight="fill" />
-                    本轮已完成 · 可继续补充或点「完成并校验」结束
-                  </span>
+                  <Marker className="composer-status done">
+                    <MarkerIcon>
+                      <CheckCircleIcon />
+                    </MarkerIcon>
+                    <MarkerContent>
+                      本轮已完成 · 可继续补充或点「完成并校验」结束
+                    </MarkerContent>
+                  </Marker>
                 ) : (
-                  <span className="composer-status">
-                    <CircleNotch size={12} className="spin" />
-                    Agent 正在处理…
-                  </span>
+                  <Marker className="composer-status">
+                    <MarkerIcon>
+                      <Spinner />
+                    </MarkerIcon>
+                    <MarkerContent>Agent 正在处理…</MarkerContent>
+                  </Marker>
                 )}
               </div>
               <div className="composer-toolbar-right">
-                <button
-                  type="button"
-                  className="composer-btn"
+                <ChatIconButton
                   onClick={sendReply}
                   disabled={busy || !reply.trim()}
-                  data-tip="发送 · ⌘/Ctrl+Enter"
-                  aria-label="发送"
+                  label="发送 · ⌘/Ctrl+Enter"
                 >
-                  <PaperPlaneRight size={16} />
-                </button>
+                  <SendIcon />
+                </ChatIconButton>
                 {streaming && (
-                  <button
-                    type="button"
-                    className="composer-btn"
+                  <ChatIconButton
                     onClick={onAbort}
                     disabled={busy}
-                    data-tip="打断当前回合"
-                    aria-label="打断"
+                    label="打断当前回合"
                   >
-                    <Stop size={16} />
-                  </button>
+                    <StopCircleIcon />
+                  </ChatIconButton>
                 )}
-                <button
-                  type="button"
-                  className="composer-btn danger"
+                <ChatIconButton
                   onClick={onCancel}
                   disabled={busy}
-                  data-tip="放弃本次执行"
-                  aria-label="放弃"
+                  label="放弃本次执行"
+                  variant="destructive"
                 >
-                  <Prohibit size={16} />
-                </button>
-                <button
-                  type="button"
-                  className="composer-btn primary"
+                  <BanIcon />
+                </ChatIconButton>
+                <ChatIconButton
                   onClick={onFinish}
                   disabled={busy}
-                  data-tip="完成并校验"
-                  aria-label="完成并校验"
+                  label="完成并校验"
+                  variant="default"
                 >
-                  <CheckCircle size={16} weight="fill" />
-                </button>
+                  <CheckCircleIcon />
+                </ChatIconButton>
               </div>
             </div>
           </div>
@@ -455,42 +616,35 @@ function ChatSession({ todo }: { todo: TodoItem }) {
             {actionable ? (
               <div className="composer-actions">
                 {notReady && (
-                  <button
-                    type="button"
-                    className="composer-btn"
+                  <ChatIconButton
                     onClick={() => setPreparing(true)}
-                    data-tip="准备工作区"
-                    aria-label="准备工作区"
+                    label="准备工作区"
                   >
-                    <Toolbox size={16} />
-                  </button>
+                    <ToolboxIcon />
+                  </ChatIconButton>
                 )}
-                <button
-                  type="button"
-                  className="composer-btn primary"
+                <ChatIconButton
                   onClick={onStart}
                   disabled={busy || notReady !== null}
-                  data-tip={
+                  label={
                     notReady ??
                     (status === "failed" || status === "succeeded"
                       ? "重新执行"
                       : "开始执行")
                   }
-                  aria-label={
-                    status === "failed" || status === "succeeded"
-                      ? "重新执行"
-                      : "开始执行"
-                  }
+                  variant="default"
                 >
                   {status === "failed" || status === "succeeded" ? (
-                    <ArrowsClockwise size={16} />
+                    <RefreshCwIcon />
                   ) : (
-                    <Play size={16} weight="fill" />
+                    <PlayIcon />
                   )}
-                </button>
+                </ChatIconButton>
               </div>
             ) : (
-              <div className="chat-hint-notification">仅通知事项，不支持执行。</div>
+              <Alert className="chat-hint-notification">
+                <AlertDescription>仅通知事项，不支持执行。</AlertDescription>
+              </Alert>
             )}
           </div>
         )}
@@ -521,12 +675,16 @@ function SourceEvidenceCard({ todo }: { todo: TodoItem }) {
   const spotlight = !imageError && bounds.length > 0;
 
   return (
-    <div className="chat-source-card open">
-      <div className="chat-source-summary">
-        来源截图
-        <span>{matched.length > 0 ? `已定位 ${matched.length} 处来源` : "未定位到高亮区域"}</span>
-      </div>
-      <div className="chat-source-body">
+    <Card className="chat-source-card open">
+      <CardHeader>
+        <CardTitle>来源截图</CardTitle>
+        <CardDescription>
+          {matched.length > 0
+            ? `已定位 ${matched.length} 处来源`
+            : "未定位到高亮区域"}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="chat-source-body">
         {!imageError ? (
           <div className={`chat-source-image${spotlight ? " spotlight" : ""}`}>
             <img
@@ -589,11 +747,13 @@ function SourceEvidenceCard({ todo }: { todo: TodoItem }) {
             ))}
           </div>
         ) : (
-          <p className="chat-source-fallback">截图文件不可读取：{screenshotPath}</p>
+          <Alert variant="destructive" className="chat-source-fallback">
+            <AlertDescription>截图文件不可读取：{screenshotPath}</AlertDescription>
+          </Alert>
         )}
         {todo.sourceText && <pre className="chat-source-text">{todo.sourceText}</pre>}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -628,15 +788,24 @@ function ThinkingBlock({ text, live }: { text: string; live?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <div className={`chat-thinking${live ? " live" : ""}`}>
-      <button
-        type="button"
+      <Button
+        aria-expanded={open}
         className="chat-thinking-head"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen((value) => !value)}
+        size="xs"
+        type="button"
+        variant="ghost"
       >
-        <CaretRight size={12} className={`chat-caret${open ? " open" : ""}`} />
-        <span>{live ? "正在思考" : "思考过程"}</span>
-        {live && <CircleNotch size={11} className="spin" />}
-      </button>
+        <span className="flex items-center gap-1.5">
+          {live && <Spinner data-icon="inline-start" />}
+          {live ? "正在思考" : "思考过程"}
+        </span>
+        {open ? (
+          <ChevronDownIcon data-icon="inline-end" />
+        ) : (
+          <ChevronRightIcon data-icon="inline-end" />
+        )}
+      </Button>
       {open && <div className="chat-thinking-body">{text}</div>}
     </div>
   );
@@ -652,11 +821,11 @@ function ThinkingBlock({ text, live }: { text: string; live?: boolean }) {
  */
 function shortenToolToken(tok: string): string {
   let t = tok.replace(/^\/(?:Users|home)\/[^/]+\//, "~/");
-  if (t.includes("/") && t.length > 40) {
+  if (t.includes("/") && t.length > 28) {
     const hadTrailing = /\/$/.test(t);
     const segs = t.split("/").filter(Boolean);
-    if (segs.length > 2) {
-      t = "…/" + segs.slice(-2).join("/") + (hadTrailing ? "/" : "");
+    if (segs.length > 1) {
+      t = "…/" + segs[segs.length - 1] + (hadTrailing ? "/" : "");
     }
   }
   return t;
@@ -687,40 +856,44 @@ function ToolCard({
   const hasBody = !!(summary || output);
 
   return (
-    <div className={`chat-tool-card ${status}`}>
-      <button
-        type="button"
-        className="chat-tool-head"
-        onClick={() => hasBody && setOpen((v) => !v)}
-        disabled={!hasBody}
+    <Card className={`chat-tool-card ${status}`}>
+      <Accordion
+        type="single"
+        collapsible
+        value={open ? "tool" : undefined}
+        onValueChange={(value) => hasBody && setOpen(value === "tool")}
       >
-        {hasBody && (
-          <CaretRight size={12} className={`chat-caret${open ? " open" : ""}`} />
-        )}
-        <Wrench size={13} />
-        <code className="chat-tool-name">{name}</code>
-        {headSummary && (
-          <span className="chat-tool-summary" title={summary}>
-            {headSummary}
-          </span>
-        )}
-        <span className="chat-tool-status">
-          {status === "running" ? (
-            <CircleNotch size={12} className="spin" />
-          ) : status === "error" ? (
-            <XCircle size={13} weight="fill" />
-          ) : (
-            <CheckCircle size={13} weight="fill" />
-          )}
-        </span>
-      </button>
-      {open && hasBody && (
-        <div className="chat-tool-body">
-          {summary && <pre className="chat-tool-args">{summary}</pre>}
-          {output && <pre className="chat-tool-output">{output}</pre>}
-        </div>
-      )}
-    </div>
+        <AccordionItem value="tool">
+          <AccordionTrigger className="chat-tool-head" disabled={!hasBody}>
+            <span className="flex min-w-0 items-center gap-2">
+              <WrenchIcon />
+              <code className="chat-tool-name">{name}</code>
+              {headSummary && (
+                <span className="chat-tool-summary" title={summary}>
+                  {headSummary}
+                </span>
+              )}
+            </span>
+            <Badge
+              className="chat-tool-status"
+              variant={status === "error" ? "destructive" : "secondary"}
+            >
+              {status === "running" ? (
+                <Spinner />
+              ) : status === "error" ? (
+                <XCircleIcon />
+              ) : (
+                <CheckCircleIcon />
+              )}
+            </Badge>
+          </AccordionTrigger>
+          <AccordionContent className="chat-tool-body">
+            {summary && <pre className="chat-tool-args">{summary}</pre>}
+            {output && <pre className="chat-tool-output">{output}</pre>}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    </Card>
   );
 }
 
@@ -742,57 +915,59 @@ function UiRequestCard({
   const title = request.title || request.message || "Agent 需要你的输入";
 
   return (
-    <div className="ui-request chat-card">
-      <div className="ui-request-title">
-        <Warning size={14} weight="fill" />
-        {title}
-      </div>
+    <Card className="ui-request chat-card">
+      <CardHeader>
+        <CardTitle className="ui-request-title">
+          <TriangleAlertIcon />
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
       {request.method === "select" && (
         <div className="ui-request-options">
           {(request.options ?? []).map((opt, i) => (
-            <button
+            <Button
               key={i}
               type="button"
-              className="btn-secondary"
+              variant="outline"
               disabled={disabled}
               onClick={() => onAnswer({ value: opt })}
             >
               {opt}
-            </button>
+            </Button>
           ))}
         </div>
       )}
       {request.method === "confirm" && (
         <div className="ui-request-options">
-          <button
+          <Button
             type="button"
-            className="btn-primary"
             disabled={disabled}
             onClick={() => onAnswer({ confirmed: true })}
           >
             确认
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="btn-secondary"
+            variant="outline"
             disabled={disabled}
             onClick={() => onAnswer({ confirmed: false })}
           >
             否
-          </button>
+          </Button>
         </div>
       )}
       {(request.method === "input" || request.method === "editor") && (
         <div className="ui-request-input">
           {request.method === "editor" ? (
-            <textarea
+            <Textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder={request.placeholder ?? ""}
               rows={3}
             />
           ) : (
-            <input
+            <Input
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder={request.placeholder ?? ""}
@@ -801,25 +976,25 @@ function UiRequestCard({
               }}
             />
           )}
-          <button
+          <Button
             type="button"
-            className="btn-primary"
             disabled={disabled}
             onClick={() => onAnswer({ value: text })}
           >
-            <PaperPlaneRight size={14} />
+            <SendIcon data-icon="inline-start" />
             提交
-          </button>
+          </Button>
         </div>
       )}
-      <button
+      <Button
         type="button"
-        className="ui-request-cancel"
+        variant="ghost"
         disabled={disabled}
         onClick={() => onAnswer({ cancelled: true })}
       >
         取消
-      </button>
-    </div>
+      </Button>
+      </CardContent>
+    </Card>
   );
 }

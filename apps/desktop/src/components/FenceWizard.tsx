@@ -1,8 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
-import { CheckCircle, Crosshair, Trash, X } from "@phosphor-icons/react";
+import {
+  CheckCircleIcon,
+  CrosshairIcon,
+  Trash2Icon,
+  XIcon,
+} from "lucide-react";
 import { normalizeFence } from "@/services/fence";
 import type { FenceRect } from "@/types";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface FenceWizardProps {
   appName: string;
@@ -17,8 +32,8 @@ type Step = 1 | 2 | 3;
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 
 /**
- * Step-by-step wizard to draw a per-app capture fence — a set of rectangles
- * (relative coordinates) — on a sample screenshot: 1) countdown + capture,
+ * Step-by-step wizard to draw a per-app capture fence - a set of rectangles
+ * (relative coordinates) - on a sample screenshot: 1) countdown + capture,
  * 2) drag to add one or more regions, 3) confirm & save.
  */
 export function FenceWizard({ appName, fences, onSave, onClear, onClose }: FenceWizardProps) {
@@ -60,7 +75,7 @@ export function FenceWizard({ appName, fences, onSave, onClear, onClose }: Fence
     return () => window.clearTimeout(t);
   }, [countdown, capture]);
 
-  const relativePoint = (e: React.PointerEvent): { x: number; y: number } | null => {
+  const relativePoint = (e: PointerEvent): { x: number; y: number } | null => {
     const el = canvasRef.current;
     if (!el) return null;
     const bounds = el.getBoundingClientRect();
@@ -71,7 +86,7 @@ export function FenceWizard({ appName, fences, onSave, onClear, onClose }: Fence
     };
   };
 
-  const handlePointerDown = (e: React.PointerEvent) => {
+  const handlePointerDown = (e: PointerEvent) => {
     const p = relativePoint(e);
     if (!p) return;
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -79,7 +94,7 @@ export function FenceWizard({ appName, fences, onSave, onClear, onClose }: Fence
     setDraft({ x: p.x, y: p.y, width: 0, height: 0 });
   };
 
-  const handlePointerMove = (e: React.PointerEvent) => {
+  const handlePointerMove = (e: PointerEvent) => {
     if (!dragStart.current) return;
     const p = relativePoint(e);
     if (!p) return;
@@ -172,21 +187,24 @@ export function FenceWizard({ appName, fences, onSave, onClear, onClose }: Fence
   };
 
   return (
-    <div className="fence-wizard-backdrop" role="dialog" aria-label="设置抓取围栏">
-      <div className="fence-wizard">
-        <header className="fence-wizard-header">
-          <h3>
-            <Crosshair size={16} /> 设置抓取围栏 · {appName}
-          </h3>
-          <button type="button" className="btn-icon" aria-label="关闭" onClick={onClose}>
-            <X size={15} />
-          </button>
-        </header>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="fence-wizard max-w-4xl">
+        <DialogHeader className="fence-wizard-header">
+          <DialogTitle className="flex items-center gap-2">
+            <CrosshairIcon />
+            设置抓取围栏 · {appName}
+          </DialogTitle>
+          <DialogDescription>
+            为指定应用框选允许参与 todo 抓取的截图区域。
+          </DialogDescription>
+        </DialogHeader>
 
         <ol className="fence-steps" aria-hidden="true">
           {["截图", "框选区域", "确认保存"].map((label, i) => (
             <li key={label} className={step === i + 1 ? "active" : step > i + 1 ? "done" : ""}>
-              <span>{i + 1}</span>
+              <Badge variant={step === i + 1 ? "default" : step > i + 1 ? "secondary" : "outline"}>
+                {i + 1}
+              </Badge>
               {label}
             </li>
           ))}
@@ -198,13 +216,17 @@ export function FenceWizard({ appName, fences, onSave, onClear, onClose }: Fence
               请将 <strong>{appName}</strong> 窗口切换到前台。点击「开始截图」后有 3
               秒倒计时，请利用这段时间切换窗口。
             </p>
-            {captureError && <p className="fence-error">{captureError}</p>}
+            {captureError && (
+              <Alert variant="destructive">
+                <AlertDescription>{captureError}</AlertDescription>
+              </Alert>
+            )}
             {countdown !== null ? (
               <div className="fence-countdown">{countdown > 0 ? countdown : "…"}</div>
             ) : (
-              <button type="button" className="btn-primary" onClick={() => setCountdown(3)}>
+              <Button type="button" onClick={() => setCountdown(3)}>
                 开始截图
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -221,37 +243,39 @@ export function FenceWizard({ appName, fences, onSave, onClear, onClose }: Fence
                 <span className="fence-readout-empty">尚未框选区域（可框选多个）</span>
               ) : (
                 rects.map((r, i) => (
-                  <span className="fence-rect-chip" key={`chip-${i}`}>
+                  <Badge className="fence-rect-chip" variant="secondary" key={`chip-${i}`}>
                     <b>{i + 1}</b>
                     {pct(r.width)} × {pct(r.height)}
-                    <button
+                    <Button
                       type="button"
+                      size="icon-xs"
+                      variant="ghost"
                       aria-label={`删除区域 ${i + 1}`}
                       onClick={() => removeRect(i)}
                     >
-                      <X size={11} weight="bold" />
-                    </button>
-                  </span>
+                      <XIcon />
+                    </Button>
+                  </Badge>
                 ))
               )}
             </div>
             <div className="fence-actions">
-              <button type="button" className="btn-secondary" onClick={() => setStep(1)}>
+              <Button type="button" variant="outline" onClick={() => setStep(1)}>
                 重新截图
-              </button>
+              </Button>
               {rects.length > 0 && (
-                <button type="button" className="btn-secondary" onClick={() => setRects([])}>
-                  <Trash size={14} /> 全部清空
-                </button>
+                <Button type="button" variant="outline" onClick={() => setRects([])}>
+                  <Trash2Icon data-icon="inline-start" />
+                  全部清空
+                </Button>
               )}
-              <button
+              <Button
                 type="button"
-                className="btn-primary"
                 disabled={rects.length === 0}
                 onClick={() => setStep(3)}
               >
                 下一步
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -264,35 +288,35 @@ export function FenceWizard({ appName, fences, onSave, onClear, onClose }: Fence
             </p>
             {renderCanvas(false)}
             <div className="fence-actions">
-              <button type="button" className="btn-secondary" onClick={() => setStep(2)}>
+              <Button type="button" variant="outline" onClick={() => setStep(2)}>
                 重新框选
-              </button>
+              </Button>
               {fences && fences.length > 0 && (
-                <button
+                <Button
                   type="button"
-                  className="btn-secondary"
+                  variant="outline"
                   onClick={() => {
                     onClear();
                     onClose();
                   }}
                 >
                   清除围栏
-                </button>
+                </Button>
               )}
-              <button
+              <Button
                 type="button"
-                className="btn-primary"
                 onClick={() => {
                   onSave(rects);
                   onClose();
                 }}
               >
-                <CheckCircle size={15} /> 保存围栏
-              </button>
+                <CheckCircleIcon data-icon="inline-start" />
+                保存围栏
+              </Button>
             </div>
           </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

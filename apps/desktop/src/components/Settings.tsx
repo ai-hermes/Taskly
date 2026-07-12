@@ -1,24 +1,72 @@
-import { useState } from "react";
-import { useAppState, useConfigStore, useTodoStore, useExecutionStore } from "@/store";
-import { saveConfig } from "@/services/storage";
-import { setDebuggerConsole } from "@/services/debugger";
-import { listRunningApps, getActiveWindow } from "@/services/window";
-import { FenceWizard } from "@/components/FenceWizard";
-import type { AppConfig, FenceRect, TodoExecutionStatus } from "@/types";
+import { useState, type ReactNode } from "react";
 import {
-  X,
-  Check,
-  ArrowClockwise,
-  Brain,
-  Bug,
-  CloudArrowUp,
-  Crosshair,
-  Lightning,
-  Monitor,
-  Pulse,
-  Robot,
-  RocketLaunch,
-} from "@phosphor-icons/react";
+  ActivityIcon,
+  BotIcon,
+  BrainIcon,
+  BugIcon,
+  CheckIcon,
+  CloudUploadIcon,
+  CrosshairIcon,
+  MonitorIcon,
+  RefreshCwIcon,
+  RocketIcon,
+  SparklesIcon,
+  ZapIcon,
+  XIcon,
+} from "lucide-react";
+import { setDebuggerConsole } from "@/services/debugger";
+import { saveConfig } from "@/services/storage";
+import { getActiveWindow, listRunningApps } from "@/services/window";
+import {
+  useAppState,
+  useConfigStore,
+  useExecutionStore,
+  useTodoStore,
+} from "@/store";
+import type { AppConfig, FenceRect, TodoExecutionStatus } from "@/types";
+import { FenceWizard } from "@/components/FenceWizard";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type SettingsGroupId =
   | "status"
@@ -32,15 +80,15 @@ type SettingsGroupId =
 const SETTINGS_GROUPS: Array<{
   id: SettingsGroupId;
   label: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 }> = [
-  { id: "status", label: "监控状态", icon: <Pulse size={16} /> },
-  { id: "monitor", label: "监控设置", icon: <Monitor size={16} /> },
-  { id: "model", label: "AI 模型", icon: <Brain size={16} /> },
-  { id: "agent", label: "Agent 执行", icon: <Robot size={16} /> },
-  { id: "sync", label: "同步", icon: <CloudArrowUp size={16} /> },
-  { id: "startup", label: "启动行为", icon: <RocketLaunch size={16} /> },
-  { id: "developer", label: "开发者选项", icon: <Bug size={16} /> },
+  { id: "status", label: "监控状态", icon: <ActivityIcon data-icon="inline-start" /> },
+  { id: "monitor", label: "监控设置", icon: <MonitorIcon data-icon="inline-start" /> },
+  { id: "model", label: "AI 模型", icon: <BrainIcon data-icon="inline-start" /> },
+  { id: "agent", label: "Agent 执行", icon: <BotIcon data-icon="inline-start" /> },
+  { id: "sync", label: "同步", icon: <CloudUploadIcon data-icon="inline-start" /> },
+  { id: "startup", label: "启动行为", icon: <RocketIcon data-icon="inline-start" /> },
+  { id: "developer", label: "开发者选项", icon: <BugIcon data-icon="inline-start" /> },
 ];
 
 const EXEC_STATUS_LABELS: Record<TodoExecutionStatus, string> = {
@@ -53,6 +101,83 @@ const EXEC_STATUS_LABELS: Record<TodoExecutionStatus, string> = {
   succeeded: "已完成",
   failed: "失败",
 };
+
+function SettingsSection({
+  children,
+  title,
+}: {
+  children: ReactNode;
+  title: string;
+}) {
+  return (
+    <section className="settings-section">
+      <h3>{title}</h3>
+      <FieldGroup>{children}</FieldGroup>
+    </section>
+  );
+}
+
+function TextSetting({
+  description,
+  id,
+  min,
+  max,
+  onChange,
+  placeholder,
+  title,
+  type = "text",
+  value,
+}: {
+  description?: string;
+  id: string;
+  min?: number;
+  max?: number;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  title: string;
+  type?: "number" | "password" | "text";
+  value: number | string;
+}) {
+  return (
+    <Field>
+      <FieldLabel htmlFor={id}>{title}</FieldLabel>
+      <Input
+        id={id}
+        type={type}
+        min={min}
+        max={max}
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {description && <FieldDescription>{description}</FieldDescription>}
+    </Field>
+  );
+}
+
+function SwitchSetting({
+  checked,
+  description,
+  id,
+  onCheckedChange,
+  title,
+}: {
+  checked: boolean;
+  description: string;
+  id: string;
+  onCheckedChange: (checked: boolean) => void;
+  title: string;
+}) {
+  return (
+    <Field orientation="horizontal">
+      <FieldContent>
+        <FieldLabel htmlFor={id}>{title}</FieldLabel>
+        <FieldDescription>{description}</FieldDescription>
+      </FieldContent>
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+    </Field>
+  );
+}
 
 /** Live monitoring status: absorbs the former Taskly Copilot floating panel. */
 function MonitorStatusSection({ onClose }: { onClose: () => void }) {
@@ -67,60 +192,87 @@ function MonitorStatusSection({ onClose }: { onClose: () => void }) {
   });
 
   return (
-    <section className="settings-section">
-      <h3>监控状态</h3>
-      <div className="copilot-status">
-        <span className={`status-dot ${monitoring ? "active" : "inactive"}`} />
-        <span>{monitoring ? "监控中…" : "已暂停"}</span>
-      </div>
+    <SettingsSection title="监控状态">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <span className={`status-dot ${monitoring ? "active" : "inactive"}`} />
+            {monitoring ? "监控中…" : "已暂停"}
+          </CardTitle>
+          <CardDescription>最近识别与执行状态会显示在这里。</CardDescription>
+        </CardHeader>
+      </Card>
 
       {lastExecuted?.execution && (
-        <div
-          className="copilot-exec-card"
+        <Card
+          className="copilot-exec-card cursor-pointer"
           role="button"
+          tabIndex={0}
           onClick={() => {
             setActiveTodo(lastExecuted.id);
             onClose();
           }}
-          title="查看执行会话"
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setActiveTodo(lastExecuted.id);
+              onClose();
+            }
+          }}
         >
-          <h4>
-            <Lightning size={13} weight="fill" />
-            最近一次执行
-          </h4>
-          <p className="exec-card-title">{lastExecuted.title}</p>
-          <p className={`exec-card-status ${lastExecuted.execution.status}`}>
-            {lastExecuted.execution.runId} ·{" "}
-            {EXEC_STATUS_LABELS[lastExecuted.execution.status] ??
-              lastExecuted.execution.status}
-          </p>
-          {lastExecuted.execution.summary && (
-            <p className="exec-card-summary">{lastExecuted.execution.summary}</p>
-          )}
-          {lastExecuted.execution.error && (
-            <p className="exec-card-error">{lastExecuted.execution.error}</p>
-          )}
-        </div>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ZapIcon />
+              最近一次执行
+            </CardTitle>
+            <CardDescription>{lastExecuted.title}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <Badge variant="secondary">
+              {lastExecuted.execution.runId} ·{" "}
+              {EXEC_STATUS_LABELS[lastExecuted.execution.status] ??
+                lastExecuted.execution.status}
+            </Badge>
+            {lastExecuted.execution.summary && (
+              <p className="exec-card-summary">{lastExecuted.execution.summary}</p>
+            )}
+            {lastExecuted.execution.error && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {lastExecuted.execution.error}
+                </AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
       )}
 
-      <div className="copilot-ocr-preview">
-        <h4>最近识别</h4>
-        {lastOcrText ? (
-          <p className="ocr-text">{lastOcrText.slice(0, 600)}</p>
-        ) : (
-          <p className="settings-status-empty">
-            暂无识别记录。开始监控后，最近识别的聊天内容会显示在这里。
-          </p>
-        )}
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>最近识别</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {lastOcrText ? (
+            <p className="ocr-text">{lastOcrText.slice(0, 600)}</p>
+          ) : (
+            <Empty className="settings-status-empty">
+              <EmptyHeader>
+                <EmptyTitle>暂无识别记录</EmptyTitle>
+                <EmptyDescription>
+                  开始监控后，最近识别的聊天内容会显示在这里。
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )}
+        </CardContent>
+      </Card>
 
       {lastMonitorError && (
-        <div className="copilot-ocr-preview">
-          <h4>最近错误</h4>
-          <p className="ocr-text">{lastMonitorError}</p>
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>{lastMonitorError}</AlertDescription>
+        </Alert>
       )}
-    </section>
+    </SettingsSection>
   );
 }
 
@@ -138,6 +290,22 @@ export function Settings({ onClose }: { onClose: () => void }) {
     baseUrl: "https://api.openai.com/v1",
     apiKey: "",
     model: "gpt-4o-mini",
+  };
+
+  const updateOpenaiConfig = (
+    key: keyof typeof openaiConfig,
+    value: string
+  ) => {
+    setLocal({
+      ...local,
+      llmConfig: {
+        ...local.llmConfig,
+        openai: {
+          ...openaiConfig,
+          [key]: value,
+        },
+      },
+    });
   };
 
   const handleSave = () => {
@@ -235,386 +403,353 @@ export function Settings({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div
-      className="settings-panel"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="settings-title"
-    >
-      <div className="settings-header">
-        <div>
-          <h2 id="settings-title">设置</h2>
-          <p>配置监控、模型和同步选项。</p>
-        </div>
-        <button onClick={onClose} type="button" aria-label="关闭设置">
-          <X size={18} />
-        </button>
-      </div>
+    <>
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="settings-panel max-w-5xl">
+          <DialogHeader className="settings-header">
+            <DialogTitle id="settings-title">设置</DialogTitle>
+            <DialogDescription>配置监控、模型和同步选项。</DialogDescription>
+          </DialogHeader>
 
-      <div className="settings-layout">
-        <nav className="settings-nav" aria-label="设置分组">
-          {SETTINGS_GROUPS.map((group) => (
-            <button
-              key={group.id}
-              type="button"
-              className={`settings-nav-item${activeGroup === group.id ? " active" : ""}`}
-              onClick={() => setActiveGroup(group.id)}
+          <Tabs
+            value={activeGroup}
+            onValueChange={(value) => setActiveGroup(value as SettingsGroupId)}
+            orientation="vertical"
+            className="settings-layout"
+          >
+            <TabsList
+              className="settings-nav"
+              variant="line"
+              aria-label="设置分组"
             >
-              {group.icon}
-              <span>{group.label}</span>
-            </button>
-          ))}
-        </nav>
+              {SETTINGS_GROUPS.map((group) => (
+                <TabsTrigger
+                  key={group.id}
+                  className="settings-nav-item"
+                  value={group.id}
+                >
+                  {group.icon}
+                  <span>{group.label}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-        <div className="settings-body">
-          {activeGroup === "status" && <MonitorStatusSection onClose={onClose} />}
+            <ScrollArea className="settings-body">
+              <TabsContent value="status">
+                <MonitorStatusSection onClose={onClose} />
+              </TabsContent>
 
-          {activeGroup === "monitor" && (
-        <section className="settings-section">
-          <h3>监控设置</h3>
-          <label className="field">
-            <span>截图间隔</span>
-            <input
-              type="number"
-              min={5}
-              max={300}
-              value={local.screenshotInterval}
-              onChange={(e) =>
-                setLocal({ ...local, screenshotInterval: Number(e.target.value) })
-              }
-            />
-            <small>单位为秒，建议保持在 15 秒以上。</small>
-          </label>
-          <label className="field">
-            <span>删除后拦截时长</span>
-            <input
-              type="number"
-              min={0}
-              max={1440}
-              value={local.dedupTombstoneTtlMinutes}
-              onChange={(e) =>
-                setLocal({
-                  ...local,
-                  dedupTombstoneTtlMinutes: Math.max(0, Number(e.target.value)),
-                })
-              }
-            />
-            <small>
-              单位为分钟。删除的待办在此时长内不会被重复识别加入；0 表示关闭该拦截。
-            </small>
-          </label>
-          <label className="switch-field">
-            <span>
-              <strong>到期提醒</strong>
-              <small>默认开启。待办到达截止时间时弹出系统通知。</small>
-            </span>
-            <input
-              type="checkbox"
-              checked={local.remindersEnabled}
-              onChange={(e) => setLocal({ ...local, remindersEnabled: e.target.checked })}
-            />
-            <span className="switch-track" aria-hidden="true" />
-          </label>
-          <div className="field">
-            <span>白名单应用</span>
-            <div className="whitelist-chips">
-              {local.whitelist.length === 0 ? (
-                <span className="whitelist-empty">
-                  未添加应用，将使用默认（微信）
-                </span>
-              ) : (
-                local.whitelist.map((name) => {
-                  const fenceCount = local.captureFences?.[name]?.length ?? 0;
-                  const hasFence = fenceCount > 0;
-                  return (
-                    <span className="whitelist-chip" key={name}>
-                      {name}
-                      <button
-                        type="button"
-                        className={`whitelist-chip-fence ${hasFence ? "active" : ""}`}
-                        aria-label={`设置 ${name} 的抓取围栏`}
-                        title={
-                          hasFence
-                            ? `已设置 ${fenceCount} 个抓取区域，点击修改`
-                            : "设置抓取围栏"
-                        }
-                        onClick={() => setFenceApp(name)}
-                      >
-                        <Crosshair size={12} weight={hasFence ? "fill" : "regular"} />
-                      </button>
-                      <button
-                        type="button"
-                        className="whitelist-chip-remove"
-                        aria-label={`移除 ${name}`}
-                        onClick={() => removeApp(name)}
-                      >
-                        <X size={12} weight="bold" />
-                      </button>
-                    </span>
-                  );
-                })
-              )}
-            </div>
-            <div className="whitelist-actions">
-              <input
-                type="text"
-                placeholder="手动输入应用名，回车添加"
-                value={manualInput}
-                onChange={(e) => setManualInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addManual();
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={togglePicker}
-              >
-                {showPicker ? "收起列表" : "选择运行中的应用"}
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={addCurrentApp}
-              >
-                添加当前前台应用
-              </button>
-            </div>
-            {showPicker && (
-              <div className="app-picker">
-                <div className="app-picker-header">
-                  <span>运行中的应用</span>
-                  <button
-                    type="button"
-                    className="app-picker-refresh"
-                    aria-label="刷新列表"
-                    onClick={() => void loadRunningApps()}
-                    disabled={loadingApps}
-                  >
-                    <ArrowClockwise size={14} />
-                  </button>
-                </div>
-                {loadingApps ? (
-                  <div className="app-picker-empty">正在获取运行中的应用…</div>
-                ) : appsError ? (
-                  <div className="app-picker-empty">{appsError}</div>
-                ) : runningApps.length === 0 ? (
-                  <div className="app-picker-empty">未获取到运行中的应用</div>
-                ) : (
-                  <div className="app-picker-list">
-                    {runningApps.map((name) => {
-                      const selected = local.whitelist.includes(name);
-                      return (
-                        <button
-                          type="button"
-                          key={name}
-                          className={`app-picker-item${selected ? " selected" : ""}`}
-                          onClick={() =>
-                            selected ? removeApp(name) : addApp(name)
+              <TabsContent value="monitor">
+                <SettingsSection title="监控设置">
+                  <TextSetting
+                    id="screenshot-interval"
+                    title="截图间隔"
+                    type="number"
+                    min={5}
+                    max={300}
+                    value={local.screenshotInterval}
+                    onChange={(value) =>
+                      setLocal({
+                        ...local,
+                        screenshotInterval: Number(value),
+                      })
+                    }
+                    description="单位为秒，建议保持在 15 秒以上。"
+                  />
+                  <TextSetting
+                    id="dedup-ttl"
+                    title="删除后拦截时长"
+                    type="number"
+                    min={0}
+                    max={1440}
+                    value={local.dedupTombstoneTtlMinutes}
+                    onChange={(value) =>
+                      setLocal({
+                        ...local,
+                        dedupTombstoneTtlMinutes: Math.max(0, Number(value)),
+                      })
+                    }
+                    description="单位为分钟。删除的待办在此时长内不会被重复识别加入；0 表示关闭该拦截。"
+                  />
+                  <SwitchSetting
+                    id="reminders-enabled"
+                    title="到期提醒"
+                    description="默认开启。待办到达截止时间时弹出系统通知。"
+                    checked={local.remindersEnabled}
+                    onCheckedChange={(checked) =>
+                      setLocal({ ...local, remindersEnabled: checked })
+                    }
+                  />
+                  <Field>
+                    <FieldLabel>白名单应用</FieldLabel>
+                    <div className="whitelist-chips">
+                      {local.whitelist.length === 0 ? (
+                        <Badge variant="outline">未添加应用，将使用默认（微信）</Badge>
+                      ) : (
+                        local.whitelist.map((name) => {
+                          const fenceCount =
+                            local.captureFences?.[name]?.length ?? 0;
+                          const hasFence = fenceCount > 0;
+                          return (
+                            <Badge
+                              className="whitelist-chip"
+                              key={name}
+                              variant={hasFence ? "secondary" : "outline"}
+                            >
+                              {name}
+                              <Button
+                                type="button"
+                                size="icon-xs"
+                                variant="ghost"
+                                aria-label={`设置 ${name} 的抓取围栏`}
+                                title={
+                                  hasFence
+                                    ? `已设置 ${fenceCount} 个抓取区域，点击修改`
+                                    : "设置抓取围栏"
+                                }
+                                onClick={() => setFenceApp(name)}
+                              >
+                                <CrosshairIcon />
+                              </Button>
+                              <Button
+                                type="button"
+                                size="icon-xs"
+                                variant="ghost"
+                                aria-label={`移除 ${name}`}
+                                onClick={() => removeApp(name)}
+                              >
+                                <XIcon />
+                              </Button>
+                            </Badge>
+                          );
+                        })
+                      )}
+                    </div>
+                    <InputGroup>
+                      <InputGroupInput
+                        placeholder="手动输入应用名，回车添加"
+                        value={manualInput}
+                        onChange={(event) => setManualInput(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            addManual();
                           }
+                        }}
+                      />
+                      <InputGroupAddon align="inline-end">
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="ghost"
+                          onClick={addManual}
                         >
-                          <span>{name}</span>
-                          {selected && <Check size={14} weight="bold" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-            <small>仅当白名单应用在前台时才截图。可手动输入或从运行中的应用选择。</small>
-          </div>
-        </section>
-          )}
+                          添加
+                        </Button>
+                      </InputGroupAddon>
+                    </InputGroup>
+                    <div className="whitelist-actions">
+                      <Button type="button" variant="outline" onClick={togglePicker}>
+                        {showPicker ? "收起列表" : "选择运行中的应用"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={addCurrentApp}
+                      >
+                        添加当前前台应用
+                      </Button>
+                    </div>
+                    {showPicker && (
+                      <Card className="app-picker">
+                        <CardHeader className="app-picker-header">
+                          <CardTitle>运行中的应用</CardTitle>
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="ghost"
+                            aria-label="刷新列表"
+                            onClick={() => void loadRunningApps()}
+                            disabled={loadingApps}
+                          >
+                            <RefreshCwIcon />
+                          </Button>
+                        </CardHeader>
+                        <CardContent>
+                          {loadingApps ? (
+                            <div className="flex flex-col gap-2">
+                              <Skeleton className="h-7 w-full" />
+                              <Skeleton className="h-7 w-4/5" />
+                            </div>
+                          ) : appsError ? (
+                            <Alert variant="destructive">
+                              <AlertDescription>{appsError}</AlertDescription>
+                            </Alert>
+                          ) : runningApps.length === 0 ? (
+                            <Empty className="app-picker-empty">
+                              <EmptyHeader>
+                                <EmptyTitle>未获取到运行中的应用</EmptyTitle>
+                              </EmptyHeader>
+                            </Empty>
+                          ) : (
+                            <div className="app-picker-list">
+                              {runningApps.map((name) => {
+                                const selected = local.whitelist.includes(name);
+                                return (
+                                  <Button
+                                    type="button"
+                                    key={name}
+                                    variant={selected ? "secondary" : "ghost"}
+                                    className="app-picker-item justify-between"
+                                    onClick={() =>
+                                      selected ? removeApp(name) : addApp(name)
+                                    }
+                                  >
+                                    <span>{name}</span>
+                                    {selected && <CheckIcon data-icon="inline-end" />}
+                                  </Button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
+                    <FieldDescription>
+                      仅当白名单应用在前台时才截图。可手动输入或从运行中的应用选择。
+                    </FieldDescription>
+                  </Field>
+                </SettingsSection>
+              </TabsContent>
 
-          {activeGroup === "model" && (
-        <section className="settings-section">
-          <h3>AI 模型</h3>
-          <label className="field">
-            <span>Base URL</span>
-            <input
-              type="text"
-              value={openaiConfig.baseUrl}
-              onChange={(e) =>
-                setLocal({
-                  ...local,
-                  llmConfig: {
-                    ...local.llmConfig,
-                    openai: {
-                      ...openaiConfig,
-                      baseUrl: e.target.value,
-                    },
-                  },
-                })
-              }
-            />
-            <small>兼容 OpenAI 接口，可填入自建/代理地址。</small>
-          </label>
-          <label className="field">
-            <span>API Key</span>
-            <input
-              type="password"
-              value={openaiConfig.apiKey}
-              onChange={(e) =>
-                setLocal({
-                  ...local,
-                  llmConfig: {
-                    ...local.llmConfig,
-                    openai: {
-                      ...openaiConfig,
-                      apiKey: e.target.value,
-                    },
-                  },
-                })
-              }
-            />
-          </label>
-          <label className="field">
-            <span>模型</span>
-            <input
-              type="text"
-              value={openaiConfig.model}
-              onChange={(e) =>
-                setLocal({
-                  ...local,
-                  llmConfig: {
-                    ...local.llmConfig,
-                    openai: {
-                      ...openaiConfig,
-                      model: e.target.value,
-                    },
-                  },
-                })
-              }
-            />
-            <small>用于 OCR 待办解析，同时作为内置 Agent 执行的模型凭据。</small>
-          </label>
-        </section>
-          )}
+              <TabsContent value="model">
+                <SettingsSection title="AI 模型">
+                  <TextSetting
+                    id="base-url"
+                    title="Base URL"
+                    value={openaiConfig.baseUrl}
+                    onChange={(value) => updateOpenaiConfig("baseUrl", value)}
+                    description="兼容 OpenAI 接口，可填入自建/代理地址。"
+                  />
+                  <TextSetting
+                    id="api-key"
+                    title="API Key"
+                    type="password"
+                    value={openaiConfig.apiKey}
+                    onChange={(value) => updateOpenaiConfig("apiKey", value)}
+                  />
+                  <TextSetting
+                    id="model"
+                    title="模型"
+                    value={openaiConfig.model}
+                    onChange={(value) => updateOpenaiConfig("model", value)}
+                    description="用于 OCR 待办解析，同时作为内置 Agent 执行的模型凭据。"
+                  />
+                </SettingsSection>
+              </TabsContent>
 
-          {activeGroup === "agent" && (
-        <section className="settings-section">
-          <h3>Agent 执行</h3>
-          <label className="field">
-            <span>Agent 命令</span>
-            <input
-              type="text"
-              value={local.agentCommand}
-              placeholder="留空使用内置 pi-coding-agent"
-              onChange={(e) => setLocal({ ...local, agentCommand: e.target.value })}
-            />
-            <small>留空使用应用内置的 pi-coding-agent；高级用户可覆盖为自定义命令。</small>
-          </label>
-          <label className="field">
-            <span>执行超时（秒）</span>
-            <input
-              type="number"
-              min={30}
-              value={local.agentTimeoutSec}
-              onChange={(e) =>
-                setLocal({
-                  ...local,
-                  agentTimeoutSec: Math.max(30, Number(e.target.value) || 600),
-                })
-              }
-            />
-          </label>
-          <label className="field">
-            <span>工作区根目录</span>
-            <input
-              type="text"
-              value={local.workspaceBaseDir}
-              placeholder="留空使用应用数据目录"
-              onChange={(e) =>
-                setLocal({ ...local, workspaceBaseDir: e.target.value })
-              }
-            />
-            <small>每条待办的独立工作区将创建在该目录的 todo-workspaces/ 下。</small>
-          </label>
-        </section>
-          )}
+              <TabsContent value="agent">
+                <SettingsSection title="Agent 执行">
+                  <TextSetting
+                    id="agent-command"
+                    title="Agent 命令"
+                    value={local.agentCommand}
+                    placeholder="留空使用内置 pi-coding-agent"
+                    onChange={(value) =>
+                      setLocal({ ...local, agentCommand: value })
+                    }
+                    description="留空使用应用内置的 pi-coding-agent；高级用户可覆盖为自定义命令。"
+                  />
+                  <TextSetting
+                    id="agent-timeout"
+                    title="执行超时（秒）"
+                    type="number"
+                    min={30}
+                    value={local.agentTimeoutSec}
+                    onChange={(value) =>
+                      setLocal({
+                        ...local,
+                        agentTimeoutSec: Math.max(30, Number(value) || 600),
+                      })
+                    }
+                  />
+                  <TextSetting
+                    id="workspace-base-dir"
+                    title="工作区根目录"
+                    value={local.workspaceBaseDir}
+                    placeholder="留空使用应用数据目录"
+                    onChange={(value) =>
+                      setLocal({ ...local, workspaceBaseDir: value })
+                    }
+                    description="每条待办的独立工作区将创建在该目录的 todo-workspaces/ 下。"
+                  />
+                </SettingsSection>
+              </TabsContent>
 
-          {activeGroup === "sync" && (
-        <section className="settings-section">
-          <h3>同步设置</h3>
-          <label className="switch-field">
-            <span>
-              <strong>启用云端同步</strong>
-              <small>开启后会按服务器地址同步待办数据。</small>
-            </span>
-            <input
-              type="checkbox"
-              checked={local.syncEnabled}
-              onChange={(e) =>
-                setLocal({ ...local, syncEnabled: e.target.checked })
-              }
-            />
-            <span className="switch-track" aria-hidden="true" />
-          </label>
-          {local.syncEnabled && (
-            <label className="field">
-              <span>服务器地址</span>
-              <input
-                type="text"
-                value={local.serverUrl}
-                onChange={(e) =>
-                  setLocal({ ...local, serverUrl: e.target.value })
-                }
-              />
-            </label>
-          )}
-        </section>
-          )}
+              <TabsContent value="sync">
+                <SettingsSection title="同步设置">
+                  <SwitchSetting
+                    id="sync-enabled"
+                    title="启用云端同步"
+                    description="开启后会按服务器地址同步待办数据。"
+                    checked={local.syncEnabled}
+                    onCheckedChange={(checked) =>
+                      setLocal({ ...local, syncEnabled: checked })
+                    }
+                  />
+                  {local.syncEnabled && (
+                    <TextSetting
+                      id="server-url"
+                      title="服务器地址"
+                      value={local.serverUrl}
+                      onChange={(value) =>
+                        setLocal({ ...local, serverUrl: value })
+                      }
+                    />
+                  )}
+                </SettingsSection>
+              </TabsContent>
 
-          {activeGroup === "startup" && (
-        <section className="settings-section">
-          <h3>启动行为</h3>
-          <label className="switch-field">
-            <span>
-              <strong>启动时打开主界面</strong>
-              <small>默认关闭。关闭后 Taskly 会启动到后台，可从托盘打开。</small>
-            </span>
-            <input
-              type="checkbox"
-              checked={local.startupOpenMainWindow}
-              onChange={(e) => handleStartupOpenMainWindowChange(e.target.checked)}
-            />
-            <span className="switch-track" aria-hidden="true" />
-          </label>
-        </section>
-          )}
+              <TabsContent value="startup">
+                <SettingsSection title="启动行为">
+                  <SwitchSetting
+                    id="startup-open-main-window"
+                    title="启动时打开主界面"
+                    description="默认关闭。关闭后 Taskly 会启动到后台，可从托盘打开。"
+                    checked={local.startupOpenMainWindow}
+                    onCheckedChange={handleStartupOpenMainWindowChange}
+                  />
+                </SettingsSection>
+              </TabsContent>
 
-          {activeGroup === "developer" && (
-        <section className="settings-section">
-          <h3>开发者选项</h3>
-          <label className="switch-field">
-            <span>
-              <strong>调试控制台</strong>
-              <small>默认关闭。开启后会显示当前窗口的 DevTools。</small>
-            </span>
-            <input
-              type="checkbox"
-              checked={local.debuggerConsoleEnabled}
-              onChange={(e) => handleDebuggerConsoleChange(e.target.checked)}
-            />
-            <span className="switch-track" aria-hidden="true" />
-          </label>
-        </section>
-          )}
-        </div>
-      </div>
+              <TabsContent value="developer">
+                <SettingsSection title="开发者选项">
+                  <SwitchSetting
+                    id="debugger-console"
+                    title="调试控制台"
+                    description="默认关闭。开启后会显示当前窗口的 DevTools。"
+                    checked={local.debuggerConsoleEnabled}
+                    onCheckedChange={handleDebuggerConsoleChange}
+                  />
+                </SettingsSection>
+              </TabsContent>
+            </ScrollArea>
+          </Tabs>
 
-      <div className="settings-footer">
-        <button className="btn-secondary" onClick={onClose}>
-          取消
-        </button>
-        <button className="btn-primary" onClick={handleSave}>
-          保存设置
-        </button>
-      </div>
+          <Separator />
+
+          <DialogFooter className="settings-footer">
+            <Button type="button" variant="outline" onClick={onClose}>
+              取消
+            </Button>
+            <Button type="button" onClick={handleSave}>
+              <SparklesIcon data-icon="inline-start" />
+              保存设置
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {fenceApp && (
         <FenceWizard
           appName={fenceApp}
@@ -624,6 +759,6 @@ export function Settings({ onClose }: { onClose: () => void }) {
           onClose={() => setFenceApp(null)}
         />
       )}
-    </div>
+    </>
   );
 }

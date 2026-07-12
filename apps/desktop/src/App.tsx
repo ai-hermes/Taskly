@@ -1,4 +1,13 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ComponentProps,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import { TodoList } from "@/components/TodoList";
 import { Settings } from "@/components/Settings";
 import { AgentChatPane } from "@/components/AgentChatPane";
@@ -31,7 +40,47 @@ import {
   persistEvidenceScreenshots,
 } from "@/services/screenshots";
 import type { TodoItem, TranscriptEntry, ToolCallEntry } from "@/types";
-import { GearSix, Pause, Play, Warning } from "@phosphor-icons/react";
+import {
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
+  PauseIcon,
+  PlayIcon,
+  SettingsIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+const SIDEBAR_WIDTH_KEY = "taskly.sidebarWidth";
+const SIDEBAR_COLLAPSED_KEY = "taskly.sidebarCollapsed";
+const SIDEBAR_DEFAULT_WIDTH = 336;
+const SIDEBAR_MIN_WIDTH = 260;
+const SIDEBAR_MAX_WIDTH = 520;
+
+function clampSidebarWidth(width: number) {
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
+}
+
+function readStoredSidebarWidth() {
+  if (typeof window === "undefined") return SIDEBAR_DEFAULT_WIDTH;
+  const stored = Number(window.localStorage.getItem(SIDEBAR_WIDTH_KEY));
+  return Number.isFinite(stored)
+    ? clampSidebarWidth(stored)
+    : SIDEBAR_DEFAULT_WIDTH;
+}
+
+function readStoredSidebarCollapsed() {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
+}
 
 /**
  * A live execution status (running/waiting_input/validating) persisted on disk
@@ -58,11 +107,43 @@ function reconcileStaleRuns(todos: TodoItem[]): TodoItem[] {
 
 function LoadingSkeleton() {
   return (
-    <div className="loading-state" aria-label="正在加载待办">
-      <div className="skeleton-row skeleton-row-strong" />
-      <div className="skeleton-row" />
-      <div className="skeleton-row skeleton-row-short" />
+    <div className="loading-state flex flex-col gap-2" aria-label="正在加载待办">
+      <Skeleton className="h-5 w-4/5" />
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="h-4 w-2/3" />
     </div>
+  );
+}
+
+function SidebarIconButton({
+  children,
+  className,
+  label,
+  onClick,
+  variant = "outline",
+}: {
+  children: ReactNode;
+  className?: string;
+  label: string;
+  onClick: () => void;
+  variant?: ComponentProps<typeof Button>["variant"];
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          aria-label={label}
+          className={className}
+          onClick={onClick}
+          type="button"
+          size="icon-sm"
+          variant={variant}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -71,6 +152,11 @@ function App() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasPermission, setHasPermission] = useState(true);
   const [showPermissionGuide, setShowPermissionGuide] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(readStoredSidebarWidth);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    readStoredSidebarCollapsed
+  );
+  const [sidebarResizing, setSidebarResizing] = useState(false);
   const { todos, addTodos, setTodos, tombstones, setTombstones } = useTodoStore();
   const { config, updateConfig } = useConfigStore();
   const {
@@ -81,6 +167,8 @@ function App() {
   } = useAppState();
   const [monitor, setMonitor] = useState<MonitorService | null>(null);
   const reminderRef = useRef<ReminderService | null>(null);
+  const sidebarResizeStartRef = useRef({ x: 0, width: SIDEBAR_DEFAULT_WIDTH });
+  const openTodoCount = todos.filter((todo) => !todo.done).length;
 
   // Load saved todos on startup
   useEffect(() => {
@@ -212,6 +300,47 @@ function App() {
     };
   }, [monitor]);
 
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      SIDEBAR_COLLAPSED_KEY,
+      sidebarCollapsed ? "true" : "false"
+    );
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    if (!sidebarResizing) return;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const onPointerMove = (event: PointerEvent) => {
+      const { x, width } = sidebarResizeStartRef.current;
+      setSidebarWidth(clampSidebarWidth(width + event.clientX - x));
+    };
+
+    const stopResize = () => {
+      setSidebarResizing(false);
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", stopResize);
+    window.addEventListener("pointercancel", stopResize);
+
+    return () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", stopResize);
+      window.removeEventListener("pointercancel", stopResize);
+    };
+  }, [sidebarResizing]);
+
   // Reminder service: fire system notifications when todos become due.
   useEffect(() => {
     if (!isLoaded) return;
@@ -302,43 +431,135 @@ function App() {
     }
   };
 
+  const startSidebarResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (sidebarCollapsed) return;
+      event.preventDefault();
+      sidebarResizeStartRef.current = {
+        x: event.clientX,
+        width: sidebarWidth,
+      };
+      setSidebarResizing(true);
+    },
+    [sidebarCollapsed, sidebarWidth]
+  );
+
+  const resizeSidebarWithKeyboard = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      const direction = event.key === "ArrowLeft" ? -1 : 1;
+      setSidebarWidth((width) => clampSidebarWidth(width + direction * 16));
+    },
+    []
+  );
+
   return (
     <div className="app">
       {!hasPermission && !showPermissionGuide && (
-        <div className="permission-banner" onClick={() => setShowPermissionGuide(true)}>
-          <Warning size={15} weight="fill" />
-          <span>缺少屏幕录制权限，截图与识别将无法工作，点击查看如何开启</span>
-        </div>
+        <Alert
+          className="permission-banner cursor-pointer"
+          onClick={() => setShowPermissionGuide(true)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setShowPermissionGuide(true);
+            }
+          }}
+        >
+          <TriangleAlertIcon />
+          <AlertDescription>
+            缺少屏幕录制权限，截图与识别将无法工作，点击查看如何开启
+          </AlertDescription>
+        </Alert>
       )}
 
-      <div className="app-body">
-        <aside className="app-sidebar">
-          <div className="sidebar-scroll">
-            {isLoaded ? <TodoList /> : <LoadingSkeleton />}
-          </div>
-          <div className="sidebar-controls">
-            <span className="sidebar-version">v{__APP_VERSION__}</span>
-            <div className="sidebar-controls-actions">
-            <button
-              className={`btn-icon has-tip ${monitoring ? "active" : ""}`}
-              onClick={toggleMonitoring}
-              type="button"
-              data-tip={monitoring ? "暂停监控" : "开始监控"}
-              aria-label={monitoring ? "暂停监控" : "开始监控"}
-            >
-              {monitoring ? <Pause size={16} weight="fill" /> : <Play size={16} weight="fill" />}
-            </button>
-            <button
-              className="btn-icon has-tip"
-              onClick={() => setShowSettings(true)}
-              type="button"
-              aria-label="打开设置"
-              data-tip="设置"
-            >
-              <GearSix size={17} />
-            </button>
+      <div className={`app-body${sidebarResizing ? " sidebar-resizing" : ""}`}>
+        <aside
+          className={`app-sidebar${sidebarCollapsed ? " collapsed" : ""}${
+            sidebarResizing ? " resizing" : ""
+          }`}
+          style={sidebarCollapsed ? undefined : { width: sidebarWidth }}
+        >
+          {sidebarCollapsed ? (
+            <div className="sidebar-rail">
+              <SidebarIconButton
+                label="展开侧边栏"
+                onClick={() => setSidebarCollapsed(false)}
+              >
+                <PanelLeftOpenIcon />
+              </SidebarIconButton>
+              <SidebarIconButton
+                className={monitoring ? "active" : undefined}
+                label={monitoring ? "暂停监控" : "开始监控"}
+                onClick={toggleMonitoring}
+                variant={monitoring ? "default" : "outline"}
+              >
+                {monitoring ? <PauseIcon /> : <PlayIcon />}
+              </SidebarIconButton>
+              <div className="sidebar-rail-spacer" />
+              <SidebarIconButton
+                label="打开设置"
+                onClick={() => setShowSettings(true)}
+              >
+                <SettingsIcon />
+              </SidebarIconButton>
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="sidebar-header">
+                <div className="sidebar-heading-copy">
+                  <span className="sidebar-kicker">Taskly</span>
+                  <h1 className="sidebar-brand">任务队列</h1>
+                </div>
+                <div className="sidebar-header-actions">
+                  <Badge variant={monitoring ? "default" : "outline"}>
+                    {monitoring ? "监控中" : `${openTodoCount} 个待办`}
+                  </Badge>
+                  <SidebarIconButton
+                    label="折叠侧边栏"
+                    onClick={() => setSidebarCollapsed(true)}
+                    variant="ghost"
+                  >
+                    <PanelLeftCloseIcon />
+                  </SidebarIconButton>
+                </div>
+              </div>
+              <ScrollArea className="sidebar-scroll">
+                {isLoaded ? <TodoList /> : <LoadingSkeleton />}
+              </ScrollArea>
+              <div className="sidebar-controls">
+                <span className="sidebar-version">v{__APP_VERSION__}</span>
+                <div className="sidebar-controls-actions">
+                  <SidebarIconButton
+                    className={monitoring ? "active" : undefined}
+                    label={monitoring ? "暂停监控" : "开始监控"}
+                    onClick={toggleMonitoring}
+                    variant={monitoring ? "default" : "outline"}
+                  >
+                    {monitoring ? <PauseIcon /> : <PlayIcon />}
+                  </SidebarIconButton>
+                  <SidebarIconButton
+                    label="打开设置"
+                    onClick={() => setShowSettings(true)}
+                  >
+                    <SettingsIcon />
+                  </SidebarIconButton>
+                </div>
+              </div>
+              <div
+                aria-label="调整侧边栏宽度"
+                aria-orientation="vertical"
+                className="sidebar-resize-handle"
+                onKeyDown={resizeSidebarWithKeyboard}
+                onPointerDown={startSidebarResize}
+                role="separator"
+                tabIndex={0}
+              />
+            </>
+          )}
         </aside>
         <section className="app-chat">
           <AgentChatPane />

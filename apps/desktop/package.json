@@ -15,7 +15,7 @@
     "@fontsource-variable/geist": "^5.2.9",
     "@fontsource/geist-mono": "^5.2.8",
     "@fontsource/geist-sans": "^5.2.5",
-    "@phosphor-icons/react": "^2.1.10",
+    "@shadcn/react": "^0.2.1",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-notification": "^2.3.3",

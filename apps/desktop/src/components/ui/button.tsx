@@ -41,17 +41,31 @@ const buttonVariants = cva(
   }
 )
 
+type ButtonProps = Omit<React.ComponentProps<"button">, "inert"> &
+  VariantProps<typeof buttonVariants> & {
+    asChild?: boolean
+    inert?: boolean | string
+  }
+
 const Button = React.forwardRef<
   HTMLButtonElement,
-  React.ComponentProps<"button"> &
-    VariantProps<typeof buttonVariants> & {
-      asChild?: boolean
-    }
+  ButtonProps
 >(function Button(
-  { className, variant = "default", size = "default", asChild = false, ...props },
+  {
+    className,
+    inert,
+    variant = "default",
+    size = "default",
+    asChild = false,
+    ...props
+  },
   ref
 ) {
   const Comp = asChild ? Slot.Root : "button"
+  const inertProps =
+    inert === undefined || inert === false
+      ? {}
+      : { inert: inert === true ? "true" : inert }
 
   return (
     <Comp
@@ -60,6 +74,7 @@ const Button = React.forwardRef<
       data-variant={variant}
       data-size={size}
       className={cn(buttonVariants({ variant, size, className }))}
+      {...inertProps}
       {...props}
     />
   )

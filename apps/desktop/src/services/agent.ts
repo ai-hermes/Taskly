@@ -177,7 +177,7 @@ async function ensureWorkspace(todoId: string): Promise<TodoWorkspaceContext> {
 
 /**
  * Guard errors surfaced to the UI before an execution is attempted. A missing
- * workspace is NOT an error anymore — it is auto-provisioned on demand (see
+ * workspace is NOT an error anymore - it is auto-provisioned on demand (see
  * `ensureWorkspace`), so we only block on genuinely unrecoverable conditions.
  */
 export function validateReadyToExecute(todoId: string): string | null {
@@ -505,7 +505,7 @@ export async function cancelRun(todoId: string): Promise<void> {
 // Dev-only: these listeners hold long-lived Tauri subscriptions bound to the
 // store instance. A hot-reload of this module (or the store) can leave stale
 // subscriptions writing to an orphaned store instance while the UI reads a new
-// one — a split-brain that looks like a frozen "执行中". Decline HMR so any edit
+// one - a split-brain that looks like a frozen "执行中". Decline HMR so any edit
 // triggers a clean full reload instead of half-swapping the runtime.
 if (import.meta.hot) {
   import.meta.hot.accept(() => {

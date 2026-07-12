@@ -714,7 +714,7 @@ export const useExecutionStore = create<ExecutionLiveStore>((set) => ({
         case "auto_retry_end": {
           // success === true just means the retry recovered; let the normal
           // event stream continue. A failed end (retries exhausted / cancelled)
-          // is terminal for the turn — surface why and hand control back.
+          // is terminal for the turn - surface why and hand control back.
           if (ev.success === true) return {};
           const fe =
             typeof ev.finalError === "string" && ev.finalError

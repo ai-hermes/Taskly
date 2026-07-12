@@ -12,7 +12,7 @@ const CODE_FENCE = /^ {0,3}(`{3,}|~{3,})/;
 /**
  * Clean up agent narration before rendering:
  *  1. Strip standalone horizontal-rule lines (`---`, `***`, `___`). In a chat
- *     context these separators are pure visual noise — the model emits them
+ *     context these separators are pure visual noise - the model emits them
  *     liberally (e.g. between PPT sections) and each renders as an `<hr>`,
  *     stacking into a wall of divider lines. Removing them also prevents a
  *     `text` + `---` pair from being parsed as an oversized setext `<h2>`.
