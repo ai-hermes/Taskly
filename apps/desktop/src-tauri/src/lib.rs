@@ -34,9 +34,11 @@ fn set_macos_dock_icon() {}
 async fn capture_screenshot(
     _app: tauri::AppHandle,
     whitelist: Option<Vec<String>>,
-) -> Result<String, String> {
+    target_app: Option<String>,
+) -> Result<screenshot::CaptureResult, String> {
     let whitelist = whitelist.unwrap_or_default();
-    screenshot::capture_focused_window(&whitelist).map_err(|e| format!("Screenshot failed: {}", e))
+    screenshot::capture_focused_window(&whitelist, target_app.as_deref())
+        .map_err(|e| format!("Screenshot failed: {}", e))
 }
 
 #[tauri::command]

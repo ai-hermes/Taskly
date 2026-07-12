@@ -284,6 +284,17 @@ export interface FenceRect {
   height: number;
 }
 
+/** Result of a native window capture (`capture_screenshot` command). */
+export interface CaptureResult {
+  /** File path of the saved PNG. */
+  path: string;
+  /** Real owning app of the captured window (verify before applying a fence). */
+  ownerApp: string;
+  /** Pixel dimensions of the written PNG (0 when unknown). */
+  width: number;
+  height: number;
+}
+
 export interface AppConfig {
   whitelist: string[];
   /** Per-app capture fences keyed by whitelist app name; a fence is a set of
