@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { LockKey } from "@phosphor-icons/react";
 import {
   requestScreenRecordingPermission,
   openScreenRecordingSettings,
@@ -38,7 +39,9 @@ export function PermissionGuide({ onGranted, onDismiss }: Props) {
   return (
     <div className="permission-guide">
       <div className="permission-card">
-        <div className="permission-icon">🔒</div>
+        <div className="permission-icon">
+          <LockKey size={26} weight="duotone" />
+        </div>
         <h2>需要「屏幕录制」权限</h2>
         <p>
           Taskly 需要「屏幕录制 / Screen &amp; System Audio Recording」权限，

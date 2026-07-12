@@ -4,6 +4,7 @@ import type {
   AppConfig,
   Tombstone,
   TranscriptEntry,
+  ToolCallEntry,
 } from "@/types";
 
 const STORE_PATH = "taskly-data.json";
@@ -79,6 +80,33 @@ export async function loadChatTranscripts(): Promise<
   const s = await getStore();
   const data = await s.get<Record<string, TranscriptEntry[]>>(
     "chatTranscripts"
+  );
+  return data || {};
+}
+
+/**
+ * Persist the per-todo tool-call details (args + output) keyed by call id, so
+ * tool cards keep their expandable body after a reload/restart. Only the
+ * transcript records the tool timeline; without this the reloaded cards would
+ * collapse to name-only.
+ */
+export async function saveToolCalls(
+  toolCalls: Record<string, Record<string, ToolCallEntry>>
+): Promise<void> {
+  const s = await getStore();
+  const pruned: Record<string, Record<string, ToolCallEntry>> = {};
+  for (const [id, calls] of Object.entries(toolCalls)) {
+    if (calls && Object.keys(calls).length > 0) pruned[id] = calls;
+  }
+  await s.set("chatToolCalls", pruned);
+}
+
+export async function loadToolCalls(): Promise<
+  Record<string, Record<string, ToolCallEntry>>
+> {
+  const s = await getStore();
+  const data = await s.get<Record<string, Record<string, ToolCallEntry>>>(
+    "chatToolCalls"
   );
   return data || {};
 }

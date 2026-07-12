@@ -8,6 +8,7 @@ const STATUS_LABELS: Record<TodoExecutionStatus, string> = {
   running: "执行中",
   waiting_input: "等待回复",
   validating: "校验中",
+  needs_review: "待审阅",
   succeeded: "已完成",
   failed: "失败",
 };

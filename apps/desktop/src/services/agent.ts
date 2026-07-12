@@ -163,12 +163,26 @@ export async function attachAssets(
   return assets;
 }
 
-/** Guard errors surfaced to the UI before an execution is attempted. */
+/**
+ * Resolve the workspace to run a todo in. If the user never picked one, fall
+ * back to an auto-created default workspace directory (`~/.taskly/workspace/…`)
+ * so execution can start with zero setup instead of being blocked.
+ */
+async function ensureWorkspace(todoId: string): Promise<TodoWorkspaceContext> {
+  const todo = useTodoStore.getState().todos.find((t) => t.id === todoId);
+  if (!todo) throw new Error("待办不存在");
+  if (todo.workspace?.workdir) return todo.workspace;
+  return prepareWorkspace(todoId);
+}
+
+/**
+ * Guard errors surfaced to the UI before an execution is attempted. A missing
+ * workspace is NOT an error anymore — it is auto-provisioned on demand (see
+ * `ensureWorkspace`), so we only block on genuinely unrecoverable conditions.
+ */
 export function validateReadyToExecute(todoId: string): string | null {
   const todo = useTodoStore.getState().todos.find((t) => t.id === todoId);
   if (!todo) return "待办不存在";
-  if (!todo.workspace) return "请先准备工作区";
-  if (!todo.workspace.workdir) return "请先设置工作目录";
   return null;
 }
 
@@ -191,13 +205,11 @@ function buildPrompt(title: string, description: string | undefined, assets: Tod
  * Marks the todo done only when the agent succeeds AND all validations pass.
  */
 export async function executeTodo(todoId: string): Promise<ExecuteTodoResult> {
-  const guard = validateReadyToExecute(todoId);
-  if (guard) throw new Error(guard);
+  const workspace = await ensureWorkspace(todoId);
 
   const store = useTodoStore.getState();
   const { config } = useConfigStore.getState();
   const todo = store.todos.find((t) => t.id === todoId)!;
-  const workspace = todo.workspace!;
   const runId = `run-${Date.now().toString(36)}-${Math.random()
     .toString(36)
     .slice(2, 8)}`;
@@ -312,13 +324,11 @@ function requireRunId(todoId: string): string {
 export async function startInteractiveRun(
   todoId: string
 ): Promise<StartSessionResult> {
-  const guard = validateReadyToExecute(todoId);
-  if (guard) throw new Error(guard);
+  const workspace = await ensureWorkspace(todoId);
 
   const store = useTodoStore.getState();
   const { config } = useConfigStore.getState();
   const todo = store.todos.find((t) => t.id === todoId)!;
-  const workspace = todo.workspace!;
   const runId = newRunId();
   const startedAt = nowIso();
 
@@ -359,14 +369,30 @@ export async function startInteractiveRun(
   }
 }
 
-/** Send a free-text reply to continue the conversation (follow_up turn). */
+/**
+ * Send a free-text reply to continue the conversation.
+ *
+ * pi RPC semantics:
+ * - prompt: normal user turn (idle / waiting_input)
+ * - steer: queue while streaming, delivered after current assistant turn
+ * - follow_up: queue for "after agent fully finishes" workflows
+ *
+ * For this chat UX, user-replies after "等待你的回复" should be a normal prompt.
+ */
 export async function replyToAgent(todoId: string, text: string): Promise<void> {
   const message = text.trim();
   if (!message) return;
   const runId = requireRunId(todoId);
+  const todo = useTodoStore.getState().todos.find((t) => t.id === todoId);
+  const status = todo?.execution?.status;
+  const streaming = useExecutionStore.getState().streaming[todoId] ?? false;
+  // Default to prompt so replies after waiting_input immediately start a turn.
+  const kind = streaming || status === "running" || status === "validating"
+    ? "steer"
+    : "prompt";
   useExecutionStore.getState().pushUserTurn(todoId, message);
   useTodoStore.getState().updateExecutionState(todoId, { status: "running" });
-  await invoke("send_agent_message", { runId, message, kind: "follow_up" });
+  await invoke("send_agent_message", { runId, message, kind });
 }
 
 /** Answer a structured extension UI request (select/confirm/input/editor). */
@@ -376,15 +402,24 @@ export async function answerUiRequest(
   payload: { value?: string; confirmed?: boolean; cancelled?: boolean }
 ): Promise<void> {
   const runId = requireRunId(todoId);
-  useExecutionStore.getState().clearUiRequest(todoId);
+  useExecutionStore.getState().setWaiting(todoId, false);
   useTodoStore.getState().updateExecutionState(todoId, { status: "running" });
-  await invoke("respond_agent_ui", {
-    runId,
-    requestId,
-    value: payload.value ?? null,
-    confirmed: payload.confirmed ?? null,
-    cancelled: payload.cancelled ?? null,
-  });
+  try {
+    await invoke("respond_agent_ui", {
+      runId,
+      requestId,
+      value: payload.value ?? null,
+      confirmed: payload.confirmed ?? null,
+      cancelled: payload.cancelled ?? null,
+    });
+    useExecutionStore.getState().clearUiRequest(todoId);
+  } catch (e) {
+    // Keep the UI request visible so the user can retry instead of getting
+    // stuck in a fake "处理中" state when the response fails to send.
+    useExecutionStore.getState().setWaiting(todoId, true);
+    useTodoStore.getState().updateExecutionState(todoId, { status: "waiting_input" });
+    throw e;
+  }
 }
 
 /** Interrupt the agent's current turn without ending the session. */
