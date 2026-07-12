@@ -1,19 +1,139 @@
 import { useState } from "react";
-import { useConfigStore } from "@/store";
+import { useAppState, useConfigStore, useTodoStore, useExecutionStore } from "@/store";
 import { saveConfig } from "@/services/storage";
 import { setDebuggerConsole } from "@/services/debugger";
 import { listRunningApps, getActiveWindow } from "@/services/window";
-import type { AppConfig } from "@/types";
-import { X, Check, ArrowClockwise } from "@phosphor-icons/react";
+import { FenceWizard } from "@/components/FenceWizard";
+import type { AppConfig, FenceRect, TodoExecutionStatus } from "@/types";
+import {
+  X,
+  Check,
+  ArrowClockwise,
+  Brain,
+  Bug,
+  CloudArrowUp,
+  Crosshair,
+  Lightning,
+  Monitor,
+  Pulse,
+  Robot,
+  RocketLaunch,
+} from "@phosphor-icons/react";
+
+type SettingsGroupId =
+  | "status"
+  | "monitor"
+  | "model"
+  | "agent"
+  | "sync"
+  | "startup"
+  | "developer";
+
+const SETTINGS_GROUPS: Array<{
+  id: SettingsGroupId;
+  label: string;
+  icon: React.ReactNode;
+}> = [
+  { id: "status", label: "监控状态", icon: <Pulse size={16} /> },
+  { id: "monitor", label: "监控设置", icon: <Monitor size={16} /> },
+  { id: "model", label: "AI 模型", icon: <Brain size={16} /> },
+  { id: "agent", label: "Agent 执行", icon: <Robot size={16} /> },
+  { id: "sync", label: "同步", icon: <CloudArrowUp size={16} /> },
+  { id: "startup", label: "启动行为", icon: <RocketLaunch size={16} /> },
+  { id: "developer", label: "开发者选项", icon: <Bug size={16} /> },
+];
+
+const EXEC_STATUS_LABELS: Record<TodoExecutionStatus, string> = {
+  idle: "空闲",
+  workspace_ready: "工作区就绪",
+  running: "执行中",
+  waiting_input: "等待回复",
+  validating: "校验中",
+  needs_review: "待审阅",
+  succeeded: "已完成",
+  failed: "失败",
+};
+
+/** Live monitoring status: absorbs the former Taskly Copilot floating panel. */
+function MonitorStatusSection({ onClose }: { onClose: () => void }) {
+  const { monitoring, lastOcrText, lastMonitorError } = useAppState();
+  const setActiveTodo = useExecutionStore((s) => s.setActiveTodo);
+  const lastExecuted = useTodoStore((s) => {
+    const withExec = s.todos.filter((t) => t.execution?.runId);
+    if (withExec.length === 0) return undefined;
+    return withExec.reduce((a, b) =>
+      (a.execution!.startedAt ?? "") >= (b.execution!.startedAt ?? "") ? a : b
+    );
+  });
+
+  return (
+    <section className="settings-section">
+      <h3>监控状态</h3>
+      <div className="copilot-status">
+        <span className={`status-dot ${monitoring ? "active" : "inactive"}`} />
+        <span>{monitoring ? "监控中…" : "已暂停"}</span>
+      </div>
+
+      {lastExecuted?.execution && (
+        <div
+          className="copilot-exec-card"
+          role="button"
+          onClick={() => {
+            setActiveTodo(lastExecuted.id);
+            onClose();
+          }}
+          title="查看执行会话"
+        >
+          <h4>
+            <Lightning size={13} weight="fill" />
+            最近一次执行
+          </h4>
+          <p className="exec-card-title">{lastExecuted.title}</p>
+          <p className={`exec-card-status ${lastExecuted.execution.status}`}>
+            {lastExecuted.execution.runId} ·{" "}
+            {EXEC_STATUS_LABELS[lastExecuted.execution.status] ??
+              lastExecuted.execution.status}
+          </p>
+          {lastExecuted.execution.summary && (
+            <p className="exec-card-summary">{lastExecuted.execution.summary}</p>
+          )}
+          {lastExecuted.execution.error && (
+            <p className="exec-card-error">{lastExecuted.execution.error}</p>
+          )}
+        </div>
+      )}
+
+      <div className="copilot-ocr-preview">
+        <h4>最近识别</h4>
+        {lastOcrText ? (
+          <p className="ocr-text">{lastOcrText.slice(0, 600)}</p>
+        ) : (
+          <p className="settings-status-empty">
+            暂无识别记录。开始监控后，最近识别的聊天内容会显示在这里。
+          </p>
+        )}
+      </div>
+
+      {lastMonitorError && (
+        <div className="copilot-ocr-preview">
+          <h4>最近错误</h4>
+          <p className="ocr-text">{lastMonitorError}</p>
+        </div>
+      )}
+    </section>
+  );
+}
 
 export function Settings({ onClose }: { onClose: () => void }) {
   const { config, updateConfig } = useConfigStore();
+  const [activeGroup, setActiveGroup] = useState<SettingsGroupId>("status");
   const [local, setLocal] = useState<AppConfig>({ ...config });
   const [runningApps, setRunningApps] = useState<string[]>([]);
   const [showPicker, setShowPicker] = useState(false);
   const [loadingApps, setLoadingApps] = useState(false);
   const [appsError, setAppsError] = useState<string | null>(null);
   const [manualInput, setManualInput] = useState("");
+  const [fenceApp, setFenceApp] = useState<string | null>(null);
   const openaiConfig = local.llmConfig.openai || {
     baseUrl: "https://api.openai.com/v1",
     apiKey: "",
@@ -21,12 +141,27 @@ export function Settings({ onClose }: { onClose: () => void }) {
   };
 
   const handleSave = () => {
-    updateConfig(local);
-    saveConfig(local).catch((err) => {
+    // Prune fences for apps no longer in the whitelist.
+    const fences = Object.fromEntries(
+      Object.entries(local.captureFences ?? {}).filter(([app]) =>
+        local.whitelist.includes(app)
+      )
+    );
+    const next = { ...local, captureFences: fences };
+    updateConfig(next);
+    saveConfig(next).catch((err) => {
       console.error("Failed to save config:", err);
     });
     onClose();
   };
+
+  const setFence = (app: string, fences: FenceRect[] | null) =>
+    setLocal((prev) => {
+      const all = { ...(prev.captureFences ?? {}) };
+      if (fences && fences.length > 0) all[app] = fences;
+      else delete all[app];
+      return { ...prev, captureFences: all };
+    });
 
   const handleDebuggerConsoleChange = (enabled: boolean) => {
     const nextConfig = { ...local, debuggerConsoleEnabled: enabled };
@@ -116,7 +251,25 @@ export function Settings({ onClose }: { onClose: () => void }) {
         </button>
       </div>
 
-      <div className="settings-body">
+      <div className="settings-layout">
+        <nav className="settings-nav" aria-label="设置分组">
+          {SETTINGS_GROUPS.map((group) => (
+            <button
+              key={group.id}
+              type="button"
+              className={`settings-nav-item${activeGroup === group.id ? " active" : ""}`}
+              onClick={() => setActiveGroup(group.id)}
+            >
+              {group.icon}
+              <span>{group.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="settings-body">
+          {activeGroup === "status" && <MonitorStatusSection onClose={onClose} />}
+
+          {activeGroup === "monitor" && (
         <section className="settings-section">
           <h3>监控设置</h3>
           <label className="field">
@@ -170,19 +323,36 @@ export function Settings({ onClose }: { onClose: () => void }) {
                   未添加应用，将使用默认（微信）
                 </span>
               ) : (
-                local.whitelist.map((name) => (
-                  <span className="whitelist-chip" key={name}>
-                    {name}
-                    <button
-                      type="button"
-                      className="whitelist-chip-remove"
-                      aria-label={`移除 ${name}`}
-                      onClick={() => removeApp(name)}
-                    >
-                      <X size={12} weight="bold" />
-                    </button>
-                  </span>
-                ))
+                local.whitelist.map((name) => {
+                  const fenceCount = local.captureFences?.[name]?.length ?? 0;
+                  const hasFence = fenceCount > 0;
+                  return (
+                    <span className="whitelist-chip" key={name}>
+                      {name}
+                      <button
+                        type="button"
+                        className={`whitelist-chip-fence ${hasFence ? "active" : ""}`}
+                        aria-label={`设置 ${name} 的抓取围栏`}
+                        title={
+                          hasFence
+                            ? `已设置 ${fenceCount} 个抓取区域，点击修改`
+                            : "设置抓取围栏"
+                        }
+                        onClick={() => setFenceApp(name)}
+                      >
+                        <Crosshair size={12} weight={hasFence ? "fill" : "regular"} />
+                      </button>
+                      <button
+                        type="button"
+                        className="whitelist-chip-remove"
+                        aria-label={`移除 ${name}`}
+                        onClick={() => removeApp(name)}
+                      >
+                        <X size={12} weight="bold" />
+                      </button>
+                    </span>
+                  );
+                })
               )}
             </div>
             <div className="whitelist-actions">
@@ -258,7 +428,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
             <small>仅当白名单应用在前台时才截图。可手动输入或从运行中的应用选择。</small>
           </div>
         </section>
+          )}
 
+          {activeGroup === "model" && (
         <section className="settings-section">
           <h3>AI 模型</h3>
           <label className="field">
@@ -321,7 +493,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
             <small>用于 OCR 待办解析，同时作为内置 Agent 执行的模型凭据。</small>
           </label>
         </section>
+          )}
 
+          {activeGroup === "agent" && (
         <section className="settings-section">
           <h3>Agent 执行</h3>
           <label className="field">
@@ -361,7 +535,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
             <small>每条待办的独立工作区将创建在该目录的 todo-workspaces/ 下。</small>
           </label>
         </section>
+          )}
 
+          {activeGroup === "sync" && (
         <section className="settings-section">
           <h3>同步设置</h3>
           <label className="switch-field">
@@ -391,7 +567,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
             </label>
           )}
         </section>
+          )}
 
+          {activeGroup === "startup" && (
         <section className="settings-section">
           <h3>启动行为</h3>
           <label className="switch-field">
@@ -407,7 +585,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
             <span className="switch-track" aria-hidden="true" />
           </label>
         </section>
+          )}
 
+          {activeGroup === "developer" && (
         <section className="settings-section">
           <h3>开发者选项</h3>
           <label className="switch-field">
@@ -423,6 +603,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
             <span className="switch-track" aria-hidden="true" />
           </label>
         </section>
+          )}
+        </div>
       </div>
 
       <div className="settings-footer">
@@ -433,6 +615,15 @@ export function Settings({ onClose }: { onClose: () => void }) {
           保存设置
         </button>
       </div>
+      {fenceApp && (
+        <FenceWizard
+          appName={fenceApp}
+          fences={local.captureFences?.[fenceApp]}
+          onSave={(rects) => setFence(fenceApp, rects)}
+          onClear={() => setFence(fenceApp, null)}
+          onClose={() => setFenceApp(null)}
+        />
+      )}
     </div>
   );
 }

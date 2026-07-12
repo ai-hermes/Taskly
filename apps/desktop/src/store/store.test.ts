@@ -115,6 +115,73 @@ describe("todo execution store", () => {
     ).toBeUndefined();
   });
 
+  it("hydrates default reviewStatus and todoKind for legacy todos", () => {
+    const s = useTodoStore.getState();
+    s.setTodos([
+      makeTodo("legacy", {
+        // Simulate pre-migration payload without new fields.
+        reviewStatus: undefined,
+        todoKind: undefined,
+      }),
+    ]);
+    const todo = useTodoStore.getState().todos[0];
+    expect(todo.reviewStatus).toBe("confirmed");
+    expect(todo.todoKind).toBe("actionable");
+  });
+
+  it("can confirm a pending-captured todo", () => {
+    const s = useTodoStore.getState();
+    s.setTodos([makeTodo("a", { reviewStatus: "pending_confirmation" })]);
+    s.confirmTodo("a");
+    expect(useTodoStore.getState().todos[0].reviewStatus).toBe("confirmed");
+  });
+
+  it("sweeps near-duplicate pending todos on hydration", () => {
+    const s = useTodoStore.getState();
+    s.setTodos([
+      makeTodo("kept", {
+        title: "回复设计评审邮件",
+        reviewStatus: "confirmed",
+      }),
+      makeTodo("dup-of-confirmed", {
+        title: "回复设计评审邮件！",
+        reviewStatus: "pending_confirmation",
+      }),
+      makeTodo("p1", {
+        title: "整理 Dragonfly v2 文档",
+        reviewStatus: "pending_confirmation",
+      }),
+      makeTodo("p2", {
+        title: "记得整理 Dragonfly v2 文档！",
+        reviewStatus: "pending_confirmation",
+      }),
+    ]);
+    const ids = useTodoStore.getState().todos.map((t) => t.id);
+    expect(ids).toEqual(["kept", "p1"]);
+  });
+
+  it("confirming a todo removes its pending near-duplicates", () => {
+    const s = useTodoStore.getState();
+    useTodoStore.setState({
+      todos: [
+        makeTodo("a", {
+          title: "去小邮局取快递",
+          reviewStatus: "pending_confirmation",
+        }),
+        makeTodo("b", {
+          title: "记得去小邮局取快递",
+          reviewStatus: "pending_confirmation",
+        }),
+      ],
+      tombstones: [],
+    });
+    s.confirmTodo("a");
+    const todos = useTodoStore.getState().todos;
+    expect(todos).toHaveLength(1);
+    expect(todos[0].id).toBe("a");
+    expect(todos[0].reviewStatus).toBe("confirmed");
+  });
+
   it("workspace helpers update workdir, commands and assets", () => {
     const s = useTodoStore.getState();
     s.setTodos([makeTodo("a")]);

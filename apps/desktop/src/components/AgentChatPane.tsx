@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { useExecutionStore, useTodoStore } from "@/store";
 import {
   startInteractiveRun,
@@ -107,6 +108,8 @@ function ChatSession({ todo }: { todo: TodoItem }) {
 
   const execution = todo.execution;
   const status = execution?.status ?? "idle";
+  const actionable = (todo.todoKind ?? "actionable") !== "notification";
+  const isPending = todo.reviewStatus === "pending_confirmation";
   const isLive =
     status === "running" || status === "waiting_input" || status === "validating";
   const notReady = useMemo(
@@ -178,7 +181,7 @@ function ChatSession({ todo }: { todo: TodoItem }) {
       : STATUS_LABELS[status] ?? status;
 
   return (
-    <div className="agent-chat-pane">
+    <div className={`agent-chat-pane${isPending ? " pending" : ""}`}>
       <div className="chat-pane-header">
         <div className="chat-pane-heading">
           <h2 title={todo.title}>{todo.title}</h2>
@@ -190,16 +193,19 @@ function ChatSession({ todo }: { todo: TodoItem }) {
             {execution?.runId && <span className="run-id">{execution.runId}</span>}
           </div>
         </div>
+        {!isPending && (
         <div className="chat-pane-tools">
-          <button
-            type="button"
-            className="btn-icon"
-            onClick={() => setPreparing(true)}
-            title="准备工作区"
-            aria-label="准备工作区"
-          >
-            <Toolbox size={16} />
-          </button>
+          {actionable && (
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={() => setPreparing(true)}
+              title="准备工作区"
+              aria-label="准备工作区"
+            >
+              <Toolbox size={16} />
+            </button>
+          )}
           {todo.workspace && (
             <button
               type="button"
@@ -232,13 +238,19 @@ function ChatSession({ todo }: { todo: TodoItem }) {
             <Terminal size={16} />
           </button>
         </div>
+        )}
       </div>
+      <SourceEvidenceCard todo={todo} />
 
+      {!isPending && (
+        <>
       <div className="chat-timeline" ref={timelineRef}>
         {!hasTimeline && (
           <div className="chat-timeline-empty">
             {isLive ? (
               <p>等待 Agent 输出…</p>
+            ) : !actionable ? (
+              <p>该事项被归类为仅通知，已隐藏执行入口。</p>
             ) : status === "idle" || status === "workspace_ready" ? (
               <p>
                 点击下方「开始执行」，Agent 将在工作区内执行该待办。
@@ -438,54 +450,177 @@ function ChatSession({ todo }: { todo: TodoItem }) {
           </div>
         )}
 
-        {!isLive && (
+        {!isLive && !isPending && (
           <div className="chat-composer idle">
-            <div className="composer-actions">
-              {notReady && (
+            {actionable ? (
+              <div className="composer-actions">
+                {notReady && (
+                  <button
+                    type="button"
+                    className="composer-btn"
+                    onClick={() => setPreparing(true)}
+                    data-tip="准备工作区"
+                    aria-label="准备工作区"
+                  >
+                    <Toolbox size={16} />
+                  </button>
+                )}
                 <button
                   type="button"
-                  className="composer-btn"
-                  onClick={() => setPreparing(true)}
-                  data-tip="准备工作区"
-                  aria-label="准备工作区"
+                  className="composer-btn primary"
+                  onClick={onStart}
+                  disabled={busy || notReady !== null}
+                  data-tip={
+                    notReady ??
+                    (status === "failed" || status === "succeeded"
+                      ? "重新执行"
+                      : "开始执行")
+                  }
+                  aria-label={
+                    status === "failed" || status === "succeeded"
+                      ? "重新执行"
+                      : "开始执行"
+                  }
                 >
-                  <Toolbox size={16} />
+                  {status === "failed" || status === "succeeded" ? (
+                    <ArrowsClockwise size={16} />
+                  ) : (
+                    <Play size={16} weight="fill" />
+                  )}
                 </button>
-              )}
-              <button
-                type="button"
-                className="composer-btn primary"
-                onClick={onStart}
-                disabled={busy || notReady !== null}
-                data-tip={
-                  notReady ??
-                  (status === "failed" || status === "succeeded"
-                    ? "重新执行"
-                    : "开始执行")
-                }
-                aria-label={
-                  status === "failed" || status === "succeeded"
-                    ? "重新执行"
-                    : "开始执行"
-                }
-              >
-                {status === "failed" || status === "succeeded" ? (
-                  <ArrowsClockwise size={16} />
-                ) : (
-                  <Play size={16} weight="fill" />
-                )}
-              </button>
-            </div>
+              </div>
+            ) : (
+              <div className="chat-hint-notification">仅通知事项，不支持执行。</div>
+            )}
           </div>
         )}
 
       </div>
+        </>
+      )}
 
       {preparing && (
         <WorkspacePrepareModal todo={todo} onClose={() => setPreparing(false)} />
       )}
     </div>
   );
+}
+
+function SourceEvidenceCard({ todo }: { todo: TodoItem }) {
+  const evidence = todo.sourceEvidence;
+  const screenshotPath = evidence?.screenshotPath;
+  const matched = evidence?.matchedRegions ?? [];
+  const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
+  const [imageError, setImageError] = useState(false);
+
+  if (!screenshotPath) return null;
+  const imageSrc = convertFileSrc(screenshotPath);
+  const bounds = matched
+    .map((region) => boxToBounds(region.box, imageSize.width, imageSize.height))
+    .filter((b): b is Bounds => b !== null);
+  const spotlight = !imageError && bounds.length > 0;
+
+  return (
+    <div className="chat-source-card open">
+      <div className="chat-source-summary">
+        来源截图
+        <span>{matched.length > 0 ? `已定位 ${matched.length} 处来源` : "未定位到高亮区域"}</span>
+      </div>
+      <div className="chat-source-body">
+        {!imageError ? (
+          <div className={`chat-source-image${spotlight ? " spotlight" : ""}`}>
+            <img
+              src={imageSrc}
+              alt="todo 来源截图"
+              onLoad={(e) => {
+                const image = e.currentTarget;
+                setImageSize({
+                  width: image.naturalWidth || 1,
+                  height: image.naturalHeight || 1,
+                });
+              }}
+              onError={() => setImageError(true)}
+            />
+            {spotlight && (
+              <svg
+                className="chat-source-mask"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              >
+                <defs>
+                  <mask id={`source-mask-${todo.id}`}>
+                    <rect x="0" y="0" width="100" height="100" fill="white" />
+                    {bounds.map((b, i) => (
+                      <rect
+                        key={`dim-${i}`}
+                        x={b.x * 100}
+                        y={b.y * 100}
+                        width={b.w * 100}
+                        height={b.h * 100}
+                        rx="1"
+                        fill="black"
+                      />
+                    ))}
+                  </mask>
+                </defs>
+                <rect
+                  x="0"
+                  y="0"
+                  width="100"
+                  height="100"
+                  fill="rgba(0,0,0,0.5)"
+                  mask={`url(#source-mask-${todo.id})`}
+                />
+              </svg>
+            )}
+            {bounds.map((b, index) => (
+              <span
+                key={`${index}-${matched[index]?.text ?? ""}`}
+                className="chat-source-highlight"
+                style={{
+                  left: `${b.x * 100}%`,
+                  top: `${b.y * 100}%`,
+                  width: `${b.w * 100}%`,
+                  height: `${b.h * 100}%`,
+                }}
+                title={matched[index]?.text}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="chat-source-fallback">截图文件不可读取：{screenshotPath}</p>
+        )}
+        {todo.sourceText && <pre className="chat-source-text">{todo.sourceText}</pre>}
+      </div>
+    </div>
+  );
+}
+
+interface Bounds {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Normalize an OCR polygon box to a clamped [0,1] rect, or null if invalid. */
+function boxToBounds(points: number[][], width: number, height: number): Bounds | null {
+  if (!points || points.length === 0 || width <= 0 || height <= 0) return null;
+  const xs = points.map((p) => p?.[0]).filter((n): n is number => typeof n === "number");
+  const ys = points.map((p) => p?.[1]).filter((n): n is number => typeof n === "number");
+  if (xs.length === 0 || ys.length === 0) return null;
+  const left = Math.max(0, Math.min(...xs));
+  const right = Math.min(width, Math.max(...xs));
+  const top = Math.max(0, Math.min(...ys));
+  const bottom = Math.min(height, Math.max(...ys));
+  if (right <= left || bottom <= top) return null;
+  return {
+    x: left / width,
+    y: top / height,
+    w: (right - left) / width,
+    h: (bottom - top) / height,
+  };
 }
 
 /** Collapsible thinking block (craft-style reasoning disclosure). */

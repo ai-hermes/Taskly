@@ -8,10 +8,13 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OcrResponse {
     pub success: bool,
     pub text: String,
     pub details: Vec<OcrText>,
+    pub image_width: u32,
+    pub image_height: u32,
     pub error: Option<String>,
 }
 
@@ -91,6 +94,8 @@ pub fn recognize_image(app: &AppHandle, image_path: &str) -> Result<OcrResponse,
         success: true,
         text,
         details,
+        image_width: image.width(),
+        image_height: image.height(),
         error: None,
     })
 }
@@ -157,6 +162,8 @@ impl OcrResponse {
             success: false,
             text: String::new(),
             details: Vec::new(),
+            image_width: 0,
+            image_height: 0,
             error: Some(error),
         }
     }

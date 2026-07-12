@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { recognizeImage, startOcrEngine } from "./ocr";
 import { OpenAIProvider } from "./llm";
 import { hashString, normalizeTitle, FRAME_CACHE_SIZE, FRAME_CACHE_TTL_MS } from "./dedup";
+import { filterRegionsByFences, rebuildText } from "./fence";
 import type { AppConfig, TodoItem, LLMProvider } from "@/types";
 
 /**
@@ -146,10 +147,43 @@ export class MonitorService {
         console.debug("[Monitor] skip: OCR text empty");
         return;
       }
-      this.onOcrText?.(ocrText);
 
-      // 3.5 Frame-level dedup: skip LLM if this OCR frame was seen recently.
-      if (this.isRecentFrame(ocrText)) {
+      // 3.6 Apply the per-app capture fence: only regions inside the fence
+      // take part in todo extraction (avoids picking up the user's own input
+      // box). The full screenshot still serves as evidence.
+      let details = ocrResult.details ?? [];
+      let fencedText = ocrText;
+      const whitelistKey = this.config.whitelist.find(
+        (name) => name && appName.includes(name)
+      );
+      const fences = whitelistKey
+        ? this.config.captureFences?.[whitelistKey]
+        : undefined;
+      if (fences && fences.length > 0 && details.length > 0) {
+        const kept = filterRegionsByFences(
+          details,
+          fences,
+          ocrResult.imageWidth ?? 0,
+          ocrResult.imageHeight ?? 0
+        );
+        if (kept !== details) {
+          console.debug(
+            "[Monitor] fence filter: %d -> %d region(s)",
+            details.length,
+            kept.length
+          );
+          details = kept;
+          fencedText = rebuildText(kept).trim();
+        }
+      }
+      this.onOcrText?.(fencedText);
+      if (!fencedText) {
+        console.debug("[Monitor] skip: no OCR text inside capture fence");
+        return;
+      }
+
+      // 3.7 Frame-level dedup: skip LLM if this OCR frame was seen recently.
+      if (this.isRecentFrame(fencedText)) {
         console.debug("[Monitor] skip: OCR frame unchanged (frame cache hit)");
         return;
       }
@@ -157,7 +191,11 @@ export class MonitorService {
       // 4. Extract todos via LLM
       console.debug("[Monitor] extracting todos via %s...", this.llmProvider.name);
       const knownTitles = this.getKnownTitles?.() ?? [];
-      const todos = await this.llmProvider.extractTodos(ocrText, knownTitles);
+      const todos = await this.llmProvider.extractTodos(fencedText, {
+        knownTitles,
+        screenshotPath: imagePath,
+        ocrDetails: details,
+      });
       console.info("[Monitor] extracted %d todo(s)", todos.length);
       if (todos.length > 0) {
         this.onTodosFound(todos);

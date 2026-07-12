@@ -15,7 +15,21 @@ import type {
   ToolCallEntry,
   PermissionMode,
 } from "@/types";
-import { dedupTodos, makeTombstone, fingerprint } from "@/services/dedup";
+import { dedupTodos, dedupPendingTodos, makeTombstone, fingerprint } from "@/services/dedup";
+
+function withTodoDefaults(todo: TodoItem): TodoItem {
+  return {
+    ...todo,
+    reviewStatus: todo.reviewStatus ?? "confirmed",
+    todoKind: todo.todoKind ?? "actionable",
+    sourceEvidence: todo.sourceEvidence
+      ? {
+          screenshotPath: todo.sourceEvidence.screenshotPath,
+          matchedRegions: todo.sourceEvidence.matchedRegions ?? [],
+        }
+      : undefined,
+  };
+}
 
 interface TodoStore {
   todos: TodoItem[];
@@ -24,6 +38,7 @@ interface TodoStore {
   toggleTodo: (id: string) => void;
   removeTodo: (id: string) => void;
   updateTodo: (id: string, patch: Partial<TodoItem>) => void;
+  confirmTodo: (id: string) => void;
   setTodos: (todos: TodoItem[]) => void;
   setTombstones: (tombstones: Tombstone[]) => void;
   setWorkspace: (id: string, workspace: TodoWorkspaceContext) => void;
@@ -59,9 +74,10 @@ export const useTodoStore = create<TodoStore>((set) => ({
   tombstones: [],
   addTodos: (items, tombstoneTtlMs = 0) =>
     set((state) => {
+      const normalized = items.map(withTodoDefaults);
       const now = Date.now();
       const { added, liveTombstones } = dedupTodos(
-        items,
+        normalized,
         state.todos,
         state.tombstones,
         tombstoneTtlMs,
@@ -116,12 +132,29 @@ export const useTodoStore = create<TodoStore>((set) => ({
           : t
       ),
     })),
+  confirmTodo: (id) =>
+    set((state) => ({
+      // Confirming a todo also sweeps its remaining pending near-duplicates.
+      todos: dedupPendingTodos(
+        state.todos.map((t) =>
+          t.id === id
+            ? {
+                ...t,
+                reviewStatus: "confirmed",
+                updatedAt: new Date().toISOString(),
+              }
+            : t
+        )
+      ),
+    })),
   setTodos: (todos) =>
     set({
-      todos: todos.map((t) => ({
-        ...t,
-        fingerprint: t.fingerprint || fingerprint(t),
-      })),
+      todos: dedupPendingTodos(
+        todos.map((t) => ({
+          ...withTodoDefaults(t),
+          fingerprint: t.fingerprint || fingerprint(t),
+        }))
+      ),
     }),
   setTombstones: (tombstones) => set({ tombstones }),
   setWorkspace: (id, workspace) =>
@@ -177,6 +210,7 @@ interface ConfigStore {
 
 const defaultConfig: AppConfig = {
   whitelist: ["微信", "WeChat", "Weixin"],
+  captureFences: {},
   screenshotInterval: 30,
   llmProvider: "openai",
   llmConfig: {
@@ -206,22 +240,18 @@ export const useConfigStore = create<ConfigStore>((set) => ({
 
 interface AppState {
   monitoring: boolean;
-  copilotVisible: boolean;
   lastOcrText: string;
   lastMonitorError: string;
   setMonitoring: (v: boolean) => void;
-  setCopilotVisible: (v: boolean) => void;
   setLastOcrText: (text: string) => void;
   setLastMonitorError: (text: string) => void;
 }
 
 export const useAppState = create<AppState>((set) => ({
   monitoring: false,
-  copilotVisible: true,
   lastOcrText: "",
   lastMonitorError: "",
   setMonitoring: (v) => set({ monitoring: v }),
-  setCopilotVisible: (v) => set({ copilotVisible: v }),
   setLastOcrText: (text) => set({ lastOcrText: text }),
   setLastMonitorError: (text) => set({ lastMonitorError: text }),
 }));
