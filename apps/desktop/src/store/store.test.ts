@@ -182,6 +182,64 @@ describe("todo execution store", () => {
     expect(todos[0].reviewStatus).toBe("confirmed");
   });
 
+  it("deduplicates newly captured todos against active confirmed and pending history", () => {
+    const s = useTodoStore.getState();
+    s.setTodos([
+      makeTodo("confirmed", {
+        title: "测试GPT-5.6效果,对比fable5效果",
+        reviewStatus: "confirmed",
+      }),
+      makeTodo("pending", {
+        title: "准备 kubeflow 相关资料",
+        reviewStatus: "pending_confirmation",
+      }),
+    ]);
+
+    s.addTodos([
+      makeTodo("dup-confirmed", {
+        title: "测评 GPT-5.6 效果，对比 fable5 效果",
+        reviewStatus: "pending_confirmation",
+      }),
+      makeTodo("dup-pending", {
+        title: "准备一下 kubeflow 相关资料",
+        reviewStatus: "pending_confirmation",
+      }),
+      makeTodo("fresh", {
+        title: "整理 dragonfly v2 新变更",
+        reviewStatus: "pending_confirmation",
+      }),
+    ]);
+
+    expect(useTodoStore.getState().todos.map((todo) => todo.id)).toEqual([
+      "confirmed",
+      "pending",
+      "fresh",
+    ]);
+  });
+
+  it("does not block newly captured todos with completed history", () => {
+    const s = useTodoStore.getState();
+    s.setTodos([
+      makeTodo("done-history", {
+        title: "准备 pi agent 分享",
+        done: true,
+        reviewStatus: "confirmed",
+      }),
+    ]);
+
+    s.addTodos([
+      makeTodo("new-active", {
+        title: "准备 pi agent 分享",
+        reviewStatus: "pending_confirmation",
+      }),
+    ]);
+
+    expect(useTodoStore.getState().todos.map((todo) => todo.id)).toEqual([
+      "done-history",
+      "new-active",
+    ]);
+  });
+
   it("workspace helpers update workdir, commands and assets", () => {
     const s = useTodoStore.getState();
     s.setTodos([makeTodo("a")]);
