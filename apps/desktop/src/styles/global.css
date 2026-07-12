@@ -2055,6 +2055,55 @@ textarea:focus-visible {
   flex: none;
 }
 
+.chat-source-image-trigger {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent !important;
+  color: inherit;
+  overflow: hidden;
+  cursor: zoom-in;
+}
+
+.chat-source-image-trigger:hover {
+  background: transparent !important;
+}
+
+.chat-source-zoom-hint {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.46);
+  color: #fff;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity 140ms ease, transform 140ms ease;
+  pointer-events: none;
+}
+
+.chat-source-zoom-hint svg {
+  width: 14px;
+  height: 14px;
+}
+
+.chat-source-image-trigger:hover .chat-source-zoom-hint,
+.chat-source-image-trigger:focus-visible .chat-source-zoom-hint {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .chat-source-image img {
   display: block;
   width: 100%;
@@ -2118,6 +2167,59 @@ textarea:focus-visible {
   margin: 0;
   color: var(--danger);
   font-size: 12px;
+}
+
+.chat-source-dialog {
+  width: min(1280px, calc(100vw - 32px));
+  max-width: min(1280px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 14px;
+}
+
+.chat-source-dialog-header {
+  gap: 2px;
+  padding-right: 44px;
+}
+
+.chat-source-dialog-body {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-sunken);
+}
+
+.chat-source-zoom-stage {
+  min-width: 100%;
+  margin: 0 auto;
+}
+
+.chat-source-image-large {
+  width: 100%;
+  max-width: none;
+  aspect-ratio: var(--source-image-ratio);
+}
+
+.chat-source-image-large img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.chat-source-dialog .chat-source-image.spotlight .chat-source-highlight {
+  animation: none;
+}
+
+.chat-source-zoom-controls {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .chat-timeline {

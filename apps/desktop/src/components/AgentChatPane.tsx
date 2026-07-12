@@ -1,4 +1,12 @@
-import { useMemo, useState, type ComponentProps, type ReactNode } from "react";
+import {
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type CSSProperties,
+  type WheelEvent as ReactWheelEvent,
+  type ReactNode,
+} from "react";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useExecutionStore, useTodoStore } from "@/store";
@@ -38,6 +46,8 @@ import {
   TriangleAlertIcon,
   WrenchIcon,
   XCircleIcon,
+  ZoomInIcon,
+  ZoomOutIcon,
 } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -45,6 +55,14 @@ import { Badge } from "@/components/ui/badge";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Empty,
   EmptyDescription,
@@ -83,6 +101,9 @@ import {
 const EMPTY_LOGS: ExecLogEvent[] = [];
 const EMPTY_TRANSCRIPT: TranscriptEntry[] = [];
 const EMPTY_TOOLS: Record<string, ToolCallEntry> = {};
+const SOURCE_ZOOM_MIN = 1;
+const SOURCE_ZOOM_MAX = 3;
+const SOURCE_ZOOM_STEP = 0.25;
 
 const ROLE_LABELS: Record<TranscriptEntry["role"], string> = {
   user: "你",
@@ -666,6 +687,8 @@ function SourceEvidenceCard({ todo }: { todo: TodoItem }) {
   const matched = evidence?.matchedRegions ?? [];
   const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
   const [imageError, setImageError] = useState(false);
+  const [sourceZoom, setSourceZoom] = useState(1);
+  const sourceDialogBodyRef = useRef<HTMLDivElement>(null);
 
   if (!screenshotPath) return null;
   const imageSrc = convertFileSrc(screenshotPath);
@@ -673,6 +696,114 @@ function SourceEvidenceCard({ todo }: { todo: TodoItem }) {
     .map((region) => boxToBounds(region.box, imageSize.width, imageSize.height))
     .filter((b): b is Bounds => b !== null);
   const spotlight = !imageError && bounds.length > 0;
+  const setClampedSourceZoom = (next: number) => {
+    setSourceZoom(
+      Math.min(SOURCE_ZOOM_MAX, Math.max(SOURCE_ZOOM_MIN, next))
+    );
+  };
+  const zoomSourceAt = (next: number, anchor?: { x: number; y: number }) => {
+    const container = sourceDialogBodyRef.current;
+    const previous = sourceZoom;
+    const clamped = Math.min(SOURCE_ZOOM_MAX, Math.max(SOURCE_ZOOM_MIN, next));
+    if (clamped === previous) return;
+
+    if (!container || !anchor) {
+      setSourceZoom(clamped);
+      return;
+    }
+
+    const rect = container.getBoundingClientRect();
+    const anchorX = anchor.x - rect.left;
+    const anchorY = anchor.y - rect.top;
+    const contentX = container.scrollLeft + anchorX;
+    const contentY = container.scrollTop + anchorY;
+    const scale = clamped / previous;
+
+    setSourceZoom(clamped);
+    requestAnimationFrame(() => {
+      container.scrollLeft = contentX * scale - anchorX;
+      container.scrollTop = contentY * scale - anchorY;
+    });
+  };
+  const handleSourceWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    if (!event.ctrlKey || Math.abs(event.deltaY) < 1) return;
+    event.preventDefault();
+    const sensitivity = 0.008;
+    const next = sourceZoom - event.deltaY * sensitivity;
+    zoomSourceAt(next, { x: event.clientX, y: event.clientY });
+  };
+  const renderSourceImage = (
+    maskId: string,
+    className = "chat-source-image"
+  ) => (
+    <div
+      className={`${className}${spotlight ? " spotlight" : ""}`}
+      style={{
+        "--source-image-width": `${imageSize.width}px`,
+        "--source-image-height": `${imageSize.height}px`,
+        "--source-image-ratio": `${imageSize.width} / ${imageSize.height}`,
+      } as CSSProperties}
+    >
+      <img
+        src={imageSrc}
+        alt="todo 来源截图"
+        onLoad={(e) => {
+          const image = e.currentTarget;
+          setImageSize({
+            width: image.naturalWidth || 1,
+            height: image.naturalHeight || 1,
+          });
+        }}
+        onError={() => setImageError(true)}
+      />
+      {spotlight && (
+        <svg
+          className="chat-source-mask"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <defs>
+            <mask id={maskId}>
+              <rect x="0" y="0" width="100" height="100" fill="white" />
+              {bounds.map((b, i) => (
+                <rect
+                  key={`dim-${i}`}
+                  x={b.x * 100}
+                  y={b.y * 100}
+                  width={b.w * 100}
+                  height={b.h * 100}
+                  rx="1"
+                  fill="black"
+                />
+              ))}
+            </mask>
+          </defs>
+          <rect
+            x="0"
+            y="0"
+            width="100"
+            height="100"
+            fill="rgba(0,0,0,0.5)"
+            mask={`url(#${maskId})`}
+          />
+        </svg>
+      )}
+      {bounds.map((b, index) => (
+        <span
+          key={`${index}-${matched[index]?.text ?? ""}`}
+          className="chat-source-highlight"
+          style={{
+            left: `${b.x * 100}%`,
+            top: `${b.y * 100}%`,
+            width: `${b.w * 100}%`,
+            height: `${b.h * 100}%`,
+          }}
+          title={matched[index]?.text}
+        />
+      ))}
+    </div>
+  );
 
   return (
     <Card className="chat-source-card open">
@@ -686,66 +817,81 @@ function SourceEvidenceCard({ todo }: { todo: TodoItem }) {
       </CardHeader>
       <CardContent className="chat-source-body">
         {!imageError ? (
-          <div className={`chat-source-image${spotlight ? " spotlight" : ""}`}>
-            <img
-              src={imageSrc}
-              alt="todo 来源截图"
-              onLoad={(e) => {
-                const image = e.currentTarget;
-                setImageSize({
-                  width: image.naturalWidth || 1,
-                  height: image.naturalHeight || 1,
-                });
-              }}
-              onError={() => setImageError(true)}
-            />
-            {spotlight && (
-              <svg
-                className="chat-source-mask"
-                viewBox="0 0 100 100"
-                preserveAspectRatio="none"
-                aria-hidden="true"
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button
+                className="chat-source-image-trigger"
+                type="button"
+                variant="ghost"
+                aria-label="放大来源截图"
               >
-                <defs>
-                  <mask id={`source-mask-${todo.id}`}>
-                    <rect x="0" y="0" width="100" height="100" fill="white" />
-                    {bounds.map((b, i) => (
-                      <rect
-                        key={`dim-${i}`}
-                        x={b.x * 100}
-                        y={b.y * 100}
-                        width={b.w * 100}
-                        height={b.h * 100}
-                        rx="1"
-                        fill="black"
-                      />
-                    ))}
-                  </mask>
-                </defs>
-                <rect
-                  x="0"
-                  y="0"
-                  width="100"
-                  height="100"
-                  fill="rgba(0,0,0,0.5)"
-                  mask={`url(#source-mask-${todo.id})`}
-                />
-              </svg>
-            )}
-            {bounds.map((b, index) => (
-              <span
-                key={`${index}-${matched[index]?.text ?? ""}`}
-                className="chat-source-highlight"
-                style={{
-                  left: `${b.x * 100}%`,
-                  top: `${b.y * 100}%`,
-                  width: `${b.w * 100}%`,
-                  height: `${b.h * 100}%`,
-                }}
-                title={matched[index]?.text}
-              />
-            ))}
-          </div>
+                {renderSourceImage(`source-mask-${todo.id}`)}
+                <span className="chat-source-zoom-hint">
+                  <ZoomInIcon />
+                </span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="chat-source-dialog">
+              <DialogHeader className="chat-source-dialog-header">
+                <DialogTitle>来源截图</DialogTitle>
+                <DialogDescription>
+                  {matched.length > 0
+                    ? `已定位 ${matched.length} 处来源`
+                    : "未定位到高亮区域"}
+                </DialogDescription>
+              </DialogHeader>
+              <div
+                className="chat-source-dialog-body"
+                ref={sourceDialogBodyRef}
+                onWheel={handleSourceWheel}
+              >
+                <div
+                  className="chat-source-zoom-stage"
+                  style={{ width: `${sourceZoom * 100}%` }}
+                >
+                  {renderSourceImage(
+                    `source-dialog-mask-${todo.id}`,
+                    "chat-source-image chat-source-image-large"
+                  )}
+                </div>
+              </div>
+              <div className="chat-source-zoom-controls">
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="outline"
+                  aria-label="缩小来源截图"
+                  disabled={sourceZoom <= SOURCE_ZOOM_MIN}
+                  onClick={() =>
+                    zoomSourceAt(sourceZoom - SOURCE_ZOOM_STEP)
+                  }
+                >
+                  <ZoomOutIcon />
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  aria-label="重置来源截图缩放"
+                  onClick={() => setClampedSourceZoom(1)}
+                >
+                  {Math.round(sourceZoom * 100)}%
+                </Button>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="outline"
+                  aria-label="放大来源截图"
+                  disabled={sourceZoom >= SOURCE_ZOOM_MAX}
+                  onClick={() =>
+                    zoomSourceAt(sourceZoom + SOURCE_ZOOM_STEP)
+                  }
+                >
+                  <ZoomInIcon />
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         ) : (
           <Alert variant="destructive" className="chat-source-fallback">
             <AlertDescription>截图文件不可读取：{screenshotPath}</AlertDescription>
