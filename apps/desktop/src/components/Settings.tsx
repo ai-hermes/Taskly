@@ -31,18 +31,9 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Empty,
   EmptyDescription,
@@ -63,7 +54,6 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -104,14 +94,19 @@ const EXEC_STATUS_LABELS: Record<TodoExecutionStatus, string> = {
 
 function SettingsSection({
   children,
+  description,
   title,
 }: {
   children: ReactNode;
+  description?: string;
   title: string;
 }) {
   return (
     <section className="settings-section">
-      <h3>{title}</h3>
+      <div className="settings-section-heading">
+        <h3>{title}</h3>
+        {description && <p>{description}</p>}
+      </div>
       <FieldGroup>{children}</FieldGroup>
     </section>
   );
@@ -192,66 +187,68 @@ function MonitorStatusSection({ onClose }: { onClose: () => void }) {
   });
 
   return (
-    <SettingsSection title="监控状态">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+    <SettingsSection
+      title="监控状态"
+      description="查看截图监控、最近识别和 Agent 执行结果。"
+    >
+      <div className="settings-status-grid">
+        <div className="settings-status-card settings-status-card-primary">
+          <div className="settings-status-card-head">
             <span className={`status-dot ${monitoring ? "active" : "inactive"}`} />
-            {monitoring ? "监控中…" : "已暂停"}
-          </CardTitle>
-          <CardDescription>最近识别与执行状态会显示在这里。</CardDescription>
-        </CardHeader>
-      </Card>
+            <span>当前状态</span>
+          </div>
+          <strong>{monitoring ? "监控中" : "已暂停"}</strong>
+          <p>最近识别与执行状态会显示在这里。</p>
+        </div>
 
-      {lastExecuted?.execution && (
-        <Card
-          className="copilot-exec-card cursor-pointer"
-          role="button"
-          tabIndex={0}
-          onClick={() => {
-            setActiveTodo(lastExecuted.id);
-            onClose();
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
+        {lastExecuted?.execution ? (
+          <button
+            type="button"
+            className="settings-status-card settings-exec-card"
+            onClick={() => {
               setActiveTodo(lastExecuted.id);
               onClose();
-            }
-          }}
-        >
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ZapIcon />
-              最近一次执行
-            </CardTitle>
-            <CardDescription>{lastExecuted.title}</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            <Badge variant="secondary">
-              {lastExecuted.execution.runId} ·{" "}
-              {EXEC_STATUS_LABELS[lastExecuted.execution.status] ??
-                lastExecuted.execution.status}
-            </Badge>
+            }}
+          >
+            <div className="settings-status-card-head">
+              <ZapIcon data-icon="inline-start" />
+              <span>最近一次执行</span>
+            </div>
+            <strong>{lastExecuted.title}</strong>
+            <div className="settings-exec-meta">
+              <Badge variant="secondary">{lastExecuted.execution.runId}</Badge>
+              <Badge variant="outline">
+                {EXEC_STATUS_LABELS[lastExecuted.execution.status] ??
+                  lastExecuted.execution.status}
+              </Badge>
+            </div>
             {lastExecuted.execution.summary && (
               <p className="exec-card-summary">{lastExecuted.execution.summary}</p>
             )}
             {lastExecuted.execution.error && (
-              <Alert variant="destructive">
+              <Alert variant="destructive" className="settings-inline-alert">
                 <AlertDescription>
                   {lastExecuted.execution.error}
                 </AlertDescription>
               </Alert>
             )}
-          </CardContent>
-        </Card>
-      )}
+          </button>
+        ) : (
+          <div className="settings-status-card settings-muted-card">
+            <div className="settings-status-card-head">
+              <ZapIcon data-icon="inline-start" />
+              <span>最近一次执行</span>
+            </div>
+            <strong>暂无执行记录</strong>
+            <p>执行待办后，可从这里快速回到对应任务。</p>
+          </div>
+        )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>最近识别</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <div className="settings-status-card settings-ocr-card">
+          <div className="settings-status-card-head">
+            <ActivityIcon data-icon="inline-start" />
+            <span>最近识别</span>
+          </div>
           {lastOcrText ? (
             <p className="ocr-text">{lastOcrText.slice(0, 600)}</p>
           ) : (
@@ -264,11 +261,10 @@ function MonitorStatusSection({ onClose }: { onClose: () => void }) {
               </EmptyHeader>
             </Empty>
           )}
-        </CardContent>
-      </Card>
-
+        </div>
+      </div>
       {lastMonitorError && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="settings-inline-alert">
           <AlertDescription>{lastMonitorError}</AlertDescription>
         </Alert>
       )}
@@ -404,43 +400,50 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
   return (
     <>
-      <Dialog open onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="settings-panel max-w-5xl">
-          <DialogHeader className="settings-header">
-            <DialogTitle id="settings-title">设置</DialogTitle>
-            <DialogDescription>配置监控、模型和同步选项。</DialogDescription>
-          </DialogHeader>
+      <section
+        className="settings-panel"
+        aria-labelledby="settings-title"
+      >
+        <header className="settings-header">
+          <div>
+            <h2 id="settings-title">设置</h2>
+            <p>配置监控、模型和同步选项。</p>
+          </div>
+        </header>
 
-          <Tabs
-            value={activeGroup}
-            onValueChange={(value) => setActiveGroup(value as SettingsGroupId)}
-            orientation="vertical"
-            className="settings-layout"
+        <Tabs
+          value={activeGroup}
+          onValueChange={(value) => setActiveGroup(value as SettingsGroupId)}
+          orientation="vertical"
+          className="settings-layout"
+        >
+          <TabsList
+            className="settings-nav"
+            variant="line"
+            aria-label="设置分组"
           >
-            <TabsList
-              className="settings-nav"
-              variant="line"
-              aria-label="设置分组"
-            >
-              {SETTINGS_GROUPS.map((group) => (
-                <TabsTrigger
-                  key={group.id}
-                  className="settings-nav-item"
-                  value={group.id}
+            {SETTINGS_GROUPS.map((group) => (
+              <TabsTrigger
+                key={group.id}
+                className="settings-nav-item"
+                value={group.id}
+              >
+                {group.icon}
+                <span>{group.label}</span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          <ScrollArea className="settings-body">
+            <TabsContent value="status">
+              <MonitorStatusSection onClose={onClose} />
+            </TabsContent>
+
+            <TabsContent value="monitor">
+                <SettingsSection
+                  title="基础参数"
+                  description="控制截图频率和删除后的重复识别拦截。"
                 >
-                  {group.icon}
-                  <span>{group.label}</span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-
-            <ScrollArea className="settings-body">
-              <TabsContent value="status">
-                <MonitorStatusSection onClose={onClose} />
-              </TabsContent>
-
-              <TabsContent value="monitor">
-                <SettingsSection title="监控设置">
                   <TextSetting
                     id="screenshot-interval"
                     title="截图间隔"
@@ -471,6 +474,12 @@ export function Settings({ onClose }: { onClose: () => void }) {
                     }
                     description="单位为分钟。删除的待办在此时长内不会被重复识别加入；0 表示关闭该拦截。"
                   />
+                </SettingsSection>
+
+                <SettingsSection
+                  title="提醒"
+                  description="控制待办到期时的系统通知。"
+                >
                   <SwitchSetting
                     id="reminders-enabled"
                     title="到期提醒"
@@ -480,6 +489,12 @@ export function Settings({ onClose }: { onClose: () => void }) {
                       setLocal({ ...local, remindersEnabled: checked })
                     }
                   />
+                </SettingsSection>
+
+                <SettingsSection
+                  title="白名单应用"
+                  description="仅当前台应用命中白名单时截图，可为单个应用设置抓取围栏。"
+                >
                   <Field>
                     <FieldLabel>白名单应用</FieldLabel>
                     <div className="whitelist-chips">
@@ -496,7 +511,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
                               key={name}
                               variant={hasFence ? "secondary" : "outline"}
                             >
-                              {name}
+                              <span className="whitelist-chip-name">{name}</span>
                               <Button
                                 type="button"
                                 size="icon-xs"
@@ -620,10 +635,13 @@ export function Settings({ onClose }: { onClose: () => void }) {
                     </FieldDescription>
                   </Field>
                 </SettingsSection>
-              </TabsContent>
+            </TabsContent>
 
-              <TabsContent value="model">
-                <SettingsSection title="AI 模型">
+            <TabsContent value="model">
+                <SettingsSection
+                  title="AI 模型"
+                  description="配置兼容 OpenAI 接口的模型凭据。"
+                >
                   <TextSetting
                     id="base-url"
                     title="Base URL"
@@ -646,10 +664,13 @@ export function Settings({ onClose }: { onClose: () => void }) {
                     description="用于 OCR 待办解析，同时作为内置 Agent 执行的模型凭据。"
                   />
                 </SettingsSection>
-              </TabsContent>
+            </TabsContent>
 
-              <TabsContent value="agent">
-                <SettingsSection title="Agent 执行">
+            <TabsContent value="agent">
+                <SettingsSection
+                  title="Agent 执行"
+                  description="控制内置 Agent 的命令、超时和工作区位置。"
+                >
                   <TextSetting
                     id="agent-command"
                     title="Agent 命令"
@@ -684,10 +705,13 @@ export function Settings({ onClose }: { onClose: () => void }) {
                     description="每条待办的独立工作区将创建在该目录的 todo-workspaces/ 下。"
                   />
                 </SettingsSection>
-              </TabsContent>
+            </TabsContent>
 
-              <TabsContent value="sync">
-                <SettingsSection title="同步设置">
+            <TabsContent value="sync">
+                <SettingsSection
+                  title="同步设置"
+                  description="开启后按服务器地址同步待办数据。"
+                >
                   <SwitchSetting
                     id="sync-enabled"
                     title="启用云端同步"
@@ -708,10 +732,13 @@ export function Settings({ onClose }: { onClose: () => void }) {
                     />
                   )}
                 </SettingsSection>
-              </TabsContent>
+            </TabsContent>
 
-              <TabsContent value="startup">
-                <SettingsSection title="启动行为">
+            <TabsContent value="startup">
+                <SettingsSection
+                  title="启动行为"
+                  description="控制 Taskly 启动后是否直接打开主界面。"
+                >
                   <SwitchSetting
                     id="startup-open-main-window"
                     title="启动时打开主界面"
@@ -720,10 +747,13 @@ export function Settings({ onClose }: { onClose: () => void }) {
                     onCheckedChange={handleStartupOpenMainWindowChange}
                   />
                 </SettingsSection>
-              </TabsContent>
+            </TabsContent>
 
-              <TabsContent value="developer">
-                <SettingsSection title="开发者选项">
+            <TabsContent value="developer">
+                <SettingsSection
+                  title="开发者选项"
+                  description="面向调试和开发排查的本地选项。"
+                >
                   <SwitchSetting
                     id="debugger-console"
                     title="调试控制台"
@@ -732,23 +762,20 @@ export function Settings({ onClose }: { onClose: () => void }) {
                     onCheckedChange={handleDebuggerConsoleChange}
                   />
                 </SettingsSection>
-              </TabsContent>
-            </ScrollArea>
-          </Tabs>
+            </TabsContent>
+          </ScrollArea>
+        </Tabs>
 
-          <Separator />
-
-          <DialogFooter className="settings-footer">
-            <Button type="button" variant="outline" onClick={onClose}>
-              取消
-            </Button>
-            <Button type="button" onClick={handleSave}>
-              <SparklesIcon data-icon="inline-start" />
-              保存设置
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        <footer className="settings-footer">
+          <Button type="button" variant="outline" onClick={onClose}>
+            取消
+          </Button>
+          <Button type="button" onClick={handleSave}>
+            <SparklesIcon data-icon="inline-start" />
+            保存设置
+          </Button>
+        </footer>
+      </section>
 
       {fenceApp && (
         <FenceWizard
