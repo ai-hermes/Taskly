@@ -100,31 +100,6 @@ const SETTINGS_GROUPS: Array<{
   { id: "developer", label: "开发者配置", icon: <BugIcon data-icon="inline-start" /> },
 ];
 
-const SETTINGS_GROUP_META: Record<
-  SettingsGroupId,
-  {
-    title: string;
-    description: string;
-  }
-> = {
-  monitor: {
-    title: "监控与识别",
-    description: "管理截图频率、OCR 识别范围和提醒行为，让自动捕获保持稳定且可预期。",
-  },
-  model: {
-    title: "模型连接",
-    description: "统一配置 OpenAI 兼容模型的地址、鉴权和模型名，供识别提取与 Agent 共用。",
-  },
-  sync: {
-    title: "数据同步",
-    description: "控制 Taskly 是否向远端服务同步待办数据，以及当前使用的服务器地址。",
-  },
-  developer: {
-    title: "高级与开发者",
-    description: "集中放置启动行为、Agent 运行参数和排查开关，方便调试与本地开发。",
-  },
-};
-
 const EXEC_STATUS_LABELS: Record<TodoExecutionStatus, string> = {
   idle: "空闲",
   workspace_ready: "工作区就绪",
@@ -252,24 +227,6 @@ function SwitchSetting({
         <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
       </div>
     </Field>
-  );
-}
-
-function SettingsOverview({
-  group,
-}: {
-  group: SettingsGroupId;
-}) {
-  const meta = SETTINGS_GROUP_META[group];
-
-  return (
-    <section className="settings-overview" aria-label={`${meta.title}概览`}>
-      <div className="settings-overview-copy">
-        <span className="settings-overview-label">当前分组</span>
-        <h3>{meta.title}</h3>
-        <p>{meta.description}</p>
-      </div>
-    </section>
   );
 }
 
@@ -863,7 +820,6 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
           <ScrollArea className="settings-body">
             <TabsContent value="monitor">
-                <SettingsOverview group="monitor" />
                 <MonitorStatusSection onClose={onClose} />
 
                 <div className="settings-section-grid settings-section-grid-2">
@@ -1067,7 +1023,6 @@ export function Settings({ onClose }: { onClose: () => void }) {
             </TabsContent>
 
             <TabsContent value="model">
-                <SettingsOverview group="model" />
                 <SettingsSection
                   title="AI 模型"
                   description="配置兼容 OpenAI 接口的模型凭据。"
@@ -1097,7 +1052,6 @@ export function Settings({ onClose }: { onClose: () => void }) {
             </TabsContent>
 
             <TabsContent value="sync">
-                <SettingsOverview group="sync" />
                 <SettingsSection
                   title="同步设置"
                   description="开启后按服务器地址同步待办数据。"
@@ -1125,7 +1079,6 @@ export function Settings({ onClose }: { onClose: () => void }) {
             </TabsContent>
 
             <TabsContent value="developer">
-                <SettingsOverview group="developer" />
 
                 <OcrModelManager
                   downloading={ocrModelDownloading}

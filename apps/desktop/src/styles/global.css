@@ -59,6 +59,41 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
+
+  /* ---- Cal.com design language (DESIGN-cal.md) ---- */
+  --font-body: "Inter", "Geist Sans", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-display: "Inter", "Geist Sans", ui-sans-serif, system-ui, sans-serif;
+  --display-tracking: -0.022em;
+  --display-tracking-tight: -0.03em;
+
+  --ink: #111111;
+  --body: #374151;
+  --muted: #6b7280;
+  --muted-soft: #898989;
+  --hairline: #e5e7eb;
+  --hairline-soft: #f3f4f6;
+  --canvas: #ffffff;
+  --surface-soft: #f8f9fa;
+  --surface-card: #f5f5f5;
+  --surface-strong: #e5e7eb;
+  --surface-dark: #101010;
+  --surface-dark-elevated: #1a1a1a;
+
+  --primary: #111111;
+  --primary-active: #242424;
+  --primary-disabled: #e5e7eb;
+  --on-primary: #ffffff;
+  --on-dark: #ffffff;
+  --on-dark-soft: #a1a1aa;
+
+  --cal-accent: #3b82f6;
+  --cal-warning: #f59e0b;
+  --cal-error: #ef4444;
+
+  --radius-xs: 4px;
+  --radius-xl: 16px;
+  --radius-pill: 9999px;
 }
 
 /*
@@ -98,6 +133,27 @@
     --code-fg: #e6e6ea;
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-popover: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+    /* ---- Cal.com tokens remapped for dark theme ---- */
+    --ink: #f7f6f4;
+    --body: #dfddd9;
+    --muted: #b5b0aa;
+    --muted-soft: #827d77;
+    --hairline: #ffffff1a;
+    --hairline-soft: #ffffff12;
+    --canvas: #20201f;
+    --surface-soft: #232322;
+    --surface-card: #232322;
+    --surface-strong: #343332;
+    --surface-dark: #171716;
+    --surface-dark-elevated: #232322;
+
+    --primary: #f7f6f4;
+    --primary-active: #ffffff;
+    --primary-disabled: #343332;
+    --on-primary: #111111;
+    --on-dark: #f7f6f4;
+    --on-dark-soft: #b5b0aa;
   }
 
   html {
@@ -119,11 +175,20 @@ body {
   min-height: 100vh;
   background: var(--surface-subtle);
   color: var(--text-primary);
-  font-family: Inter, "Geist Sans", ui-sans-serif, system-ui, -apple-system,
-    BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-family: var(--font-body);
   font-size: 15px;
   line-height: 1.33;
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Cal.com display treatment: Inter 600 with negative tracking to approximate
+   the Cal Sans geometric display voice (DESIGN-cal.md). */
+.cal-display {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: var(--display-tracking);
 }
 
 button,
@@ -3154,7 +3219,10 @@ textarea:focus-visible {
 :root {
   --font-notion: Inter, "Geist Sans", ui-sans-serif, system-ui, -apple-system,
     BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-body: var(--font-notion);
   --font-display: var(--font-notion);
+  --display-tracking: -0.022em;
+  --display-tracking-tight: -0.032em;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
     Consolas, "Liberation Mono", monospace;
   --surface: #ffffff;
@@ -3261,6 +3329,14 @@ body {
   height: 100vh;
   height: 100dvh;
   background: var(--surface-wash);
+}
+
+/* Cal.com display voice: geometric, weight-600, negative tracking on headlines. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: var(--display-tracking);
 }
 
 .app-topbar {
@@ -3473,13 +3549,13 @@ body {
 }
 
 .sidebar-brand {
-  font-family: var(--font-notion);
+  font-family: var(--font-display);
   margin: 0;
   color: var(--text-primary);
   font-size: 18px;
   font-weight: 600;
-  line-height: 1.4;
-  letter-spacing: -0.125px;
+  line-height: 1.35;
+  letter-spacing: var(--display-tracking);
 }
 
 .sidebar-scroll {
@@ -4453,53 +4529,6 @@ body {
   gap: 14px;
 }
 
-.settings-overview {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  gap: 8px;
-  padding: 16px 18px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--surface-card);
-}
-
-.settings-overview-copy {
-  display: grid;
-  gap: 3px;
-}
-
-.settings-overview-label {
-  display: inline-flex;
-  width: fit-content;
-  min-height: 20px;
-  align-items: center;
-  padding: 0 8px;
-  border-radius: 9999px;
-  background: var(--surface);
-  color: var(--text-tertiary);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 16px;
-}
-
-.settings-overview h3 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 22px;
-  font-weight: 600;
-  line-height: 1.15;
-  letter-spacing: -0.4px;
-}
-
-.settings-overview p {
-  max-width: 56ch;
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 19px;
-}
-
 .settings-section-grid {
   display: grid;
   gap: 14px;
@@ -4510,14 +4539,13 @@ body {
 }
 
 .settings-section {
-  display: grid;
-  grid-template-columns: minmax(170px, 210px) minmax(0, 1fr);
-  align-items: start;
-  gap: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   padding: 16px 18px;
   border: 1px solid var(--border);
   border-radius: 14px;
-  background: var(--surface-card);
+  background: var(--surface);
   box-shadow: none;
 }
 
@@ -4718,15 +4746,21 @@ body {
 
 .settings-section h3 {
   margin: 0;
+  font-family: var(--font-display);
   color: var(--text-primary);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
-  line-height: 22px;
-  letter-spacing: -0.2px;
+  line-height: 21px;
+  letter-spacing: var(--display-tracking);
+}
+
+.settings-section-heading {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
 }
 
 .settings-section-heading p {
-  max-width: 26ch;
+  max-width: none;
   margin: 0;
   color: var(--text-tertiary);
   font-size: 13px;
