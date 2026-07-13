@@ -50,7 +50,6 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Empty,
-  EmptyDescription,
   EmptyHeader,
   EmptyTitle,
 } from "@/components/ui/empty";
@@ -66,13 +65,13 @@ const GROUP_KEYS: TodoSectionKey[] = ["confirmed", "pending", "done"];
 
 const GROUP_META: Record<
   TodoSectionKey,
-  { title: string; emptyTitle: string; emptyDescription?: string }
+  { title: string; emptyTitle: string; tip?: string }
 > = {
   confirmed: { title: "已确认", emptyTitle: "暂无已确认待办" },
   pending: {
     title: "待确认",
     emptyTitle: "暂无待确认事项",
-    emptyDescription: "自动抓取的 todo 会先进入这里，确认后才进入已确认。",
+    tip: "自动抓取的 todo 会先进入这里，确认后才进入已确认。",
   },
   done: { title: "已完成", emptyTitle: "暂无已完成事项" },
 };
@@ -319,13 +318,13 @@ function TodoBranch({
             ref={setNodeRef}
             className={cn("todo-drop-zone", isOver && "is-over")}
           >
+            {meta.tip && (
+              <p className="todo-branch-tip">{meta.tip}</p>
+            )}
             {ids.length === 0 ? (
               <Empty className="empty-hint compact">
                 <EmptyHeader>
                   <EmptyTitle>{meta.emptyTitle}</EmptyTitle>
-                  {meta.emptyDescription && (
-                    <EmptyDescription>{meta.emptyDescription}</EmptyDescription>
-                  )}
                 </EmptyHeader>
               </Empty>
             ) : (
