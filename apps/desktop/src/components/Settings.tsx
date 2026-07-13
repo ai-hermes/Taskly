@@ -21,7 +21,7 @@ import {
   resetOcrEngine,
 } from "@/services/ocr";
 import { saveConfig } from "@/services/storage";
-import { getActiveWindow, listRunningApps } from "@/services/window";
+import { listRunningApps } from "@/services/window";
 import {
   useAppState,
   useConfigStore,
@@ -66,11 +66,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -221,9 +216,6 @@ function SwitchSetting({
         <FieldDescription>{description}</FieldDescription>
       </FieldContent>
       <div className="settings-switch-control">
-        <span className={`settings-switch-state${checked ? " is-on" : ""}`}>
-          {checked ? "开启" : "关闭"}
-        </span>
         <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
       </div>
     </Field>
@@ -548,10 +540,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
   const [ocrModelDownloading, setOcrModelDownloading] = useState(false);
   const [ocrDownloadProgress, setOcrDownloadProgress] = useState<Map<string, OcrDownloadProgress>>(new Map());
   const [runningApps, setRunningApps] = useState<string[]>([]);
-  const [showPicker, setShowPicker] = useState(false);
   const [loadingApps, setLoadingApps] = useState(false);
   const [appsError, setAppsError] = useState<string | null>(null);
-  const [manualInput, setManualInput] = useState("");
   const [fenceApp, setFenceApp] = useState<string | null>(null);
   const openaiConfig = local.llmConfig.openai || {
     baseUrl: "https://api.openai.com/v1",
@@ -742,37 +732,18 @@ export function Settings({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const togglePicker = () => {
-    const next = !showPicker;
-    setShowPicker(next);
-    if (next && runningApps.length === 0) {
-      void loadRunningApps();
-    }
-  };
-
-  const addCurrentApp = async () => {
-    try {
-      const name = (await getActiveWindow()).trim();
-      if (name) addApp(name);
-    } catch (err) {
-      console.error("Failed to get active window:", err);
-      setAppsError("获取当前前台应用失败。");
-    }
-  };
-
-  const addManual = () => {
-    const value = manualInput.trim();
-    if (value) {
-      addApp(value);
-      setManualInput("");
-    }
-  };
-
   useEffect(() => {
     if (activeGroup === "developer") {
       void loadOcrModelState();
     }
   }, [activeGroup, local.ocrModelProfile]);
+
+  useEffect(() => {
+    if (activeGroup === "monitor") {
+      void loadRunningApps();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeGroup]);
 
   return (
     <>
@@ -881,7 +852,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
                   description="仅当前台应用命中白名单时截图，可为单个应用设置抓取围栏。"
                 >
                   <Field>
-                    <FieldLabel>白名单应用</FieldLabel>
+                    <FieldLabel>已选应用</FieldLabel>
                     <div className="whitelist-chips">
                       {local.whitelist.length === 0 ? (
                         <Badge variant="outline">未添加应用，将使用默认（微信）</Badge>
@@ -925,98 +896,61 @@ export function Settings({ onClose }: { onClose: () => void }) {
                         })
                       )}
                     </div>
-                    <InputGroup>
-                      <InputGroupInput
-                        placeholder="手动输入应用名，回车添加"
-                        value={manualInput}
-                        onChange={(event) => setManualInput(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            addManual();
-                          }
-                        }}
-                      />
-                      <InputGroupAddon align="inline-end">
+                    <Card className="app-picker">
+                      <CardHeader className="app-picker-header">
+                        <CardTitle>运行中的应用</CardTitle>
                         <Button
                           type="button"
-                          size="xs"
+                          size="icon-sm"
                           variant="ghost"
-                          onClick={addManual}
+                          aria-label="刷新列表"
+                          onClick={() => void loadRunningApps()}
+                          disabled={loadingApps}
                         >
-                          添加
+                          <RefreshCwIcon />
                         </Button>
-                      </InputGroupAddon>
-                    </InputGroup>
-                    <div className="whitelist-actions">
-                      <Button type="button" variant="outline" onClick={togglePicker}>
-                        {showPicker ? "收起列表" : "选择运行中的应用"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={addCurrentApp}
-                      >
-                        添加当前前台应用
-                      </Button>
-                    </div>
-                    {showPicker && (
-                      <Card className="app-picker">
-                        <CardHeader className="app-picker-header">
-                          <CardTitle>运行中的应用</CardTitle>
-                          <Button
-                            type="button"
-                            size="icon-sm"
-                            variant="ghost"
-                            aria-label="刷新列表"
-                            onClick={() => void loadRunningApps()}
-                            disabled={loadingApps}
-                          >
-                            <RefreshCwIcon />
-                          </Button>
-                        </CardHeader>
-                        <CardContent>
-                          {loadingApps ? (
-                            <div className="flex flex-col gap-2">
-                              <Skeleton className="h-7 w-full" />
-                              <Skeleton className="h-7 w-4/5" />
-                            </div>
-                          ) : appsError ? (
-                            <Alert variant="destructive">
-                              <AlertDescription>{appsError}</AlertDescription>
-                            </Alert>
-                          ) : runningApps.length === 0 ? (
-                            <Empty className="app-picker-empty">
-                              <EmptyHeader>
-                                <EmptyTitle>未获取到运行中的应用</EmptyTitle>
-                              </EmptyHeader>
-                            </Empty>
-                          ) : (
-                            <div className="app-picker-list">
-                              {runningApps.map((name) => {
-                                const selected = local.whitelist.includes(name);
-                                return (
-                                  <Button
-                                    type="button"
-                                    key={name}
-                                    variant={selected ? "secondary" : "ghost"}
-                                    className="app-picker-item justify-between"
-                                    onClick={() =>
-                                      selected ? removeApp(name) : addApp(name)
-                                    }
-                                  >
-                                    <span>{name}</span>
-                                    {selected && <CheckIcon data-icon="inline-end" />}
-                                  </Button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    )}
+                      </CardHeader>
+                      <CardContent>
+                        {loadingApps ? (
+                          <div className="flex flex-col gap-2">
+                            <Skeleton className="h-7 w-full" />
+                            <Skeleton className="h-7 w-4/5" />
+                          </div>
+                        ) : appsError ? (
+                          <Alert variant="destructive">
+                            <AlertDescription>{appsError}</AlertDescription>
+                          </Alert>
+                        ) : runningApps.length === 0 ? (
+                          <Empty className="app-picker-empty">
+                            <EmptyHeader>
+                              <EmptyTitle>未获取到运行中的应用</EmptyTitle>
+                            </EmptyHeader>
+                          </Empty>
+                        ) : (
+                          <div className="app-picker-list">
+                            {runningApps.map((name) => {
+                              const selected = local.whitelist.includes(name);
+                              return (
+                                <Button
+                                  type="button"
+                                  key={name}
+                                  variant={selected ? "secondary" : "ghost"}
+                                  className="app-picker-item justify-between"
+                                  onClick={() =>
+                                    selected ? removeApp(name) : addApp(name)
+                                  }
+                                >
+                                  <span>{name}</span>
+                                  {selected && <CheckIcon data-icon="inline-end" />}
+                                </Button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
                     <FieldDescription>
-                      仅当白名单应用在前台时才截图。可手动输入或从运行中的应用选择。
+                      点击运行中的应用即可加入白名单，仅当白名单应用在前台时才截图。
                     </FieldDescription>
                   </Field>
                 </CollapsibleSettingsSection>
@@ -1108,8 +1042,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
                     />
                   </SettingsSection>
 
-                  <CollapsibleSettingsSection
-                    value="developer-options"
+                  <SettingsSection
                     title="开发者选项"
                     description="面向调试和开发排查的本地选项。"
                   >
@@ -1120,7 +1053,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
                       checked={local.debuggerConsoleEnabled}
                       onCheckedChange={handleDebuggerConsoleChange}
                     />
-                  </CollapsibleSettingsSection>
+                  </SettingsSection>
                 </div>
 
                 <CollapsibleSettingsSection

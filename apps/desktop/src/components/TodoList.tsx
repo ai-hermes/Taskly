@@ -304,7 +304,7 @@ function TodoBranch({
   const { setNodeRef, isOver } = useDroppable({ id: group });
 
   return (
-    <AccordionItem className="todo-section" value={group}>
+    <AccordionItem className="todo-section todo-tree-branch" value={group}>
       <AccordionTrigger className="section-heading section-toggle">
         <div className="section-heading-main">
           <h3>{meta.title}</h3>

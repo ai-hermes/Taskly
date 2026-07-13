@@ -38,7 +38,7 @@ function AccordionTrigger({
   ...props
 }: React.ComponentProps<typeof AccordionPrimitive.Trigger>) {
   return (
-    <AccordionPrimitive.Header className="flex">
+    <AccordionPrimitive.Header className="my-0 flex">
       <AccordionPrimitive.Trigger
         data-slot="accordion-trigger"
         className={cn(
