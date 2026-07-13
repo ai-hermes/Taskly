@@ -4915,6 +4915,14 @@ h3 {
   padding-right: 6px;
 }
 
+.settings-panel [data-slot="input-group-addon"] [data-slot="button"] {
+  min-height: 28px;
+  height: 28px;
+  padding-inline: 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
 .settings-section [data-slot="field"][data-orientation="horizontal"] {
   align-items: center;
   justify-content: space-between;
