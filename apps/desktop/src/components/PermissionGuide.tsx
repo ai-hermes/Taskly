@@ -65,7 +65,7 @@ export function PermissionGuide({ onGranted, onDismiss }: Props) {
 
   return (
     <Dialog open onOpenChange={(open) => !open && onDismiss()}>
-      <DialogContent className="permission-card max-w-xl">
+      <DialogContent className="permission-card">
         <DialogHeader>
           <div className="permission-icon">
             <LockKeyholeIcon />
@@ -98,9 +98,6 @@ export function PermissionGuide({ onGranted, onDismiss }: Props) {
         )}
 
         <DialogFooter className="permission-actions">
-          <Button type="button" variant="outline" onClick={onDismiss}>
-            稍后再说
-          </Button>
           <Button
             type="button"
             variant="outline"

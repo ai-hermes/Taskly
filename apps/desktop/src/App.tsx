@@ -8,7 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { TodoList } from "@/components/TodoList";
 import { Settings } from "@/components/Settings";
 import { AgentChatPane } from "@/components/AgentChatPane";
@@ -46,6 +46,8 @@ import {
   ChevronRightIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
+  PanelRightCloseIcon,
+  PanelRightOpenIcon,
   PauseIcon,
   PlayIcon,
   SettingsIcon,
@@ -64,9 +66,14 @@ import {
 
 const SIDEBAR_WIDTH_KEY = "taskly.sidebarWidth";
 const SIDEBAR_COLLAPSED_KEY = "taskly.sidebarCollapsed";
+const CHAT_COLLAPSED_KEY = "taskly.chatCollapsed";
 const SIDEBAR_DEFAULT_WIDTH = 336;
 const SIDEBAR_MIN_WIDTH = 260;
 const SIDEBAR_MAX_WIDTH = 520;
+const TODO_ONLY_WINDOW_WIDTH = 380;
+const TODO_ONLY_MIN_HEIGHT = 480;
+const DEFAULT_MIN_WINDOW_WIDTH = 840;
+const DEFAULT_MIN_WINDOW_HEIGHT = 600;
 
 type AppRoute = "home" | "settings";
 
@@ -92,6 +99,11 @@ function readStoredSidebarWidth() {
 function readStoredSidebarCollapsed() {
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
+}
+
+function readStoredChatCollapsed() {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(CHAT_COLLAPSED_KEY) === "true";
 }
 
 /**
@@ -168,6 +180,7 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     readStoredSidebarCollapsed
   );
+  const [chatCollapsed, setChatCollapsed] = useState(readStoredChatCollapsed);
   const [settingsNavCollapsed, setSettingsNavCollapsed] = useState(false);
   const [sidebarResizing, setSidebarResizing] = useState(false);
   const { todos, addTodos, setTodos, tombstones, setTombstones } = useTodoStore();
@@ -351,6 +364,60 @@ function App() {
   }, [sidebarCollapsed]);
 
   useEffect(() => {
+    window.localStorage.setItem(CHAT_COLLAPSED_KEY, chatCollapsed ? "true" : "false");
+  }, [chatCollapsed]);
+
+  const prevWindowWidthRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const shouldShrink = route !== "settings" && chatCollapsed;
+    let win: ReturnType<typeof getCurrentWindow> | null = null;
+    try {
+      win = getCurrentWindow();
+    } catch {
+      return;
+    }
+    if (!win) return;
+
+    let cancelled = false;
+    const applyWindowSize = async () => {
+      if (!win) return;
+      try {
+        const factor = await win.scaleFactor();
+        const current = (await win.innerSize()).toLogical(factor);
+        if (cancelled) return;
+        if (shouldShrink) {
+          if (prevWindowWidthRef.current == null) {
+            prevWindowWidthRef.current = current.width;
+          }
+          await win.setMinSize(
+            new LogicalSize(TODO_ONLY_WINDOW_WIDTH, TODO_ONLY_MIN_HEIGHT)
+          );
+          await win.setSize(
+            new LogicalSize(TODO_ONLY_WINDOW_WIDTH, current.height)
+          );
+        } else {
+          await win.setMinSize(
+            new LogicalSize(DEFAULT_MIN_WINDOW_WIDTH, DEFAULT_MIN_WINDOW_HEIGHT)
+          );
+          const restore = prevWindowWidthRef.current;
+          prevWindowWidthRef.current = null;
+          if (restore != null && Math.abs(restore - current.width) > 1) {
+            await win.setSize(new LogicalSize(restore, current.height));
+          }
+        }
+      } catch {
+        // Non-Tauri environment (browser preview) or missing permission — ignore.
+      }
+    };
+
+    void applyWindowSize();
+    return () => {
+      cancelled = true;
+    };
+  }, [route, chatCollapsed]);
+
+  useEffect(() => {
     if (!sidebarResizing) return;
     const previousCursor = document.body.style.cursor;
     const previousUserSelect = document.body.style.userSelect;
@@ -494,19 +561,20 @@ function App() {
   );
 
   const isSettingsRoute = route === "settings";
+  const todoOnlyMode = !isSettingsRoute && chatCollapsed;
   const activeNavCollapsed = isSettingsRoute
     ? settingsNavCollapsed
-    : sidebarCollapsed;
+    : chatCollapsed;
   const activeNavLabel = activeNavCollapsed
     ? isSettingsRoute
       ? "展开设置导航"
-      : "展开侧边栏"
+      : "展开聊天区域"
     : isSettingsRoute
     ? "折叠设置导航"
-    : "折叠侧边栏";
+    : "折叠聊天区域";
 
   return (
-    <div className="app">
+    <div className={`app${todoOnlyMode ? " todo-only" : ""}`}>
       <header
         className="app-topbar"
         onPointerDown={(event) => {
@@ -562,17 +630,25 @@ function App() {
                 window.setTimeout(() => {
                   topbarPointerToggleRef.current = false;
                 }, 400);
-                setSidebarCollapsed((collapsed) => !collapsed);
+                setChatCollapsed((collapsed) => {
+                  const next = !collapsed;
+                  if (next && sidebarCollapsed) setSidebarCollapsed(false);
+                  return next;
+                });
               }}
               onClick={(event) => {
                 if (event.detail > 0 && topbarPointerToggleRef.current) return;
-                setSidebarCollapsed((collapsed) => !collapsed);
+                setChatCollapsed((collapsed) => {
+                  const next = !collapsed;
+                  if (next && sidebarCollapsed) setSidebarCollapsed(false);
+                  return next;
+                });
               }}
             >
               {activeNavCollapsed ? (
-                <PanelLeftOpenIcon />
+                <PanelRightOpenIcon />
               ) : (
-                <PanelLeftCloseIcon />
+                <PanelRightCloseIcon />
               )}
             </Button>
           )}
@@ -631,12 +707,20 @@ function App() {
           <Settings onClose={closeSettings} />
         </main>
       ) : (
-        <div className={`app-body${sidebarResizing ? " sidebar-resizing" : ""}`}>
+        <div
+          className={`app-body${sidebarResizing ? " sidebar-resizing" : ""}${
+            chatCollapsed ? " chat-collapsed" : ""
+          }`}
+        >
           <aside
             className={`app-sidebar${sidebarCollapsed ? " collapsed" : ""}${
               sidebarResizing ? " resizing" : ""
             }`}
-            style={sidebarCollapsed ? undefined : { width: sidebarWidth }}
+            style={
+              sidebarCollapsed || chatCollapsed
+                ? undefined
+                : { width: sidebarWidth }
+            }
           >
             {sidebarCollapsed ? (
               <div className="sidebar-rail">
@@ -696,9 +780,11 @@ function App() {
               </>
             )}
           </aside>
-          <section className="app-chat">
-            <AgentChatPane />
-          </section>
+          {!chatCollapsed && (
+            <section className="app-chat">
+              <AgentChatPane />
+            </section>
+          )}
         </div>
       )}
       {showPermissionGuide && (
