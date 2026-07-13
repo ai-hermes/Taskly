@@ -76,6 +76,52 @@ fn request_screen_recording_permission() -> bool {
 }
 
 #[tauri::command]
+async fn probe_screen_capture_permission() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        let output = std::process::Command::new("screencapture")
+            .arg("-x")
+            .arg("/tmp/taskly-permission-probe.png")
+            .output();
+
+        match output {
+            Ok(result) => {
+                if !result.status.success() {
+                    let stderr = String::from_utf8_lossy(&result.stderr);
+                    eprintln!(
+                        "[permissions] screencapture probe failed: status={}, stderr={}",
+                        result.status, stderr
+                    );
+                }
+            }
+            Err(err) => {
+                eprintln!("[permissions] screencapture probe exec error: {}", err);
+            }
+        }
+    }
+
+    permissions::has_screen_recording_permission()
+}
+
+#[tauri::command]
+fn get_screen_recording_debug_info() -> String {
+    #[cfg(target_os = "macos")]
+    {
+        let pid = std::process::id();
+        let exe = std::env::current_exe()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| "<unknown-exe>".into());
+        let app = std::env::var("__CFBundleIdentifier").unwrap_or_else(|_| "<none>".into());
+        return format!("pid={pid}; exe={exe}; bundle={app}");
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        "non-macos".to_string()
+    }
+}
+
+#[tauri::command]
 fn open_screen_recording_settings() -> Result<(), String> {
     permissions::open_screen_recording_settings().map_err(|e| e.to_string())
 }
@@ -162,6 +208,8 @@ pub fn run() {
             set_debugger_console,
             check_screen_recording_permission,
             request_screen_recording_permission,
+            probe_screen_capture_permission,
+            get_screen_recording_debug_info,
             open_screen_recording_settings,
             agent::prepare_todo_workspace,
             agent::copy_assets_to_workspace,

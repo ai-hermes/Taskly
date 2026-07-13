@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "build:sidecar": "node scripts/build-pi-sidecar.mjs",
-    "tauri": "tauri"
+    "tauri": "node scripts/prepare-sidecar.mjs && tauri"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",
