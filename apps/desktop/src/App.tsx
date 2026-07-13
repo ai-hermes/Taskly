@@ -41,6 +41,8 @@ import {
 } from "@/services/screenshots";
 import type { TodoItem, TranscriptEntry, ToolCallEntry } from "@/types";
 import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   PauseIcon,
@@ -64,6 +66,15 @@ const SIDEBAR_COLLAPSED_KEY = "taskly.sidebarCollapsed";
 const SIDEBAR_DEFAULT_WIDTH = 336;
 const SIDEBAR_MIN_WIDTH = 260;
 const SIDEBAR_MAX_WIDTH = 520;
+
+type AppRoute = "home" | "settings";
+
+function readRouteFromHash(): AppRoute {
+  if (typeof window === "undefined") return "home";
+  return window.location.hash.replace(/^#\/?/, "") === "settings"
+    ? "settings"
+    : "home";
+}
 
 function clampSidebarWidth(width: number) {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
@@ -148,7 +159,7 @@ function SidebarIconButton({
 }
 
 function App() {
-  const [showSettings, setShowSettings] = useState(false);
+  const [route, setRoute] = useState<AppRoute>(readRouteFromHash);
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasPermission, setHasPermission] = useState(true);
   const [showPermissionGuide, setShowPermissionGuide] = useState(false);
@@ -156,6 +167,7 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     readStoredSidebarCollapsed
   );
+  const [settingsNavCollapsed, setSettingsNavCollapsed] = useState(false);
   const [sidebarResizing, setSidebarResizing] = useState(false);
   const { todos, addTodos, setTodos, tombstones, setTombstones } = useTodoStore();
   const { config, updateConfig } = useConfigStore();
@@ -168,7 +180,33 @@ function App() {
   const [monitor, setMonitor] = useState<MonitorService | null>(null);
   const reminderRef = useRef<ReminderService | null>(null);
   const sidebarResizeStartRef = useRef({ x: 0, width: SIDEBAR_DEFAULT_WIDTH });
+  const topbarPointerToggleRef = useRef(false);
   const openTodoCount = todos.filter((todo) => !todo.done).length;
+
+  const openSettings = useCallback(() => {
+    if (window.location.hash !== "#/settings") {
+      window.location.hash = "/settings";
+      return;
+    }
+    setRoute("settings");
+  }, []);
+
+  const closeSettings = useCallback(() => {
+    if (window.location.hash === "#/settings") {
+      window.history.pushState(null, "", window.location.pathname);
+    }
+    setRoute("home");
+  }, []);
+
+  useEffect(() => {
+    const syncRoute = () => setRoute(readRouteFromHash());
+    window.addEventListener("hashchange", syncRoute);
+    window.addEventListener("popstate", syncRoute);
+    return () => {
+      window.removeEventListener("hashchange", syncRoute);
+      window.removeEventListener("popstate", syncRoute);
+    };
+  }, []);
 
   // Load saved todos on startup
   useEffect(() => {
@@ -454,8 +492,99 @@ function App() {
     []
   );
 
+  const isSettingsRoute = route === "settings";
+  const activeNavCollapsed = isSettingsRoute
+    ? settingsNavCollapsed
+    : sidebarCollapsed;
+  const activeNavLabel = activeNavCollapsed
+    ? isSettingsRoute
+      ? "展开设置导航"
+      : "展开侧边栏"
+    : isSettingsRoute
+    ? "折叠设置导航"
+    : "折叠侧边栏";
+
   return (
     <div className="app">
+      <header className="app-topbar" data-tauri-drag-region>
+        <div className="app-topbar-left">
+          {isSettingsRoute ? (
+            <Button
+              aria-label={activeNavLabel}
+              title={activeNavLabel}
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onPointerDown={(event) => {
+                if (event.button !== 0) return;
+                topbarPointerToggleRef.current = true;
+                window.setTimeout(() => {
+                  topbarPointerToggleRef.current = false;
+                }, 400);
+                setSettingsNavCollapsed((collapsed) => !collapsed);
+              }}
+              onClick={(event) => {
+                if (event.detail > 0 && topbarPointerToggleRef.current) return;
+                setSettingsNavCollapsed((collapsed) => !collapsed);
+              }}
+            >
+              {activeNavCollapsed ? (
+                <PanelLeftOpenIcon />
+              ) : (
+                <PanelLeftCloseIcon />
+              )}
+            </Button>
+          ) : (
+            <Button
+              aria-label={activeNavLabel}
+              title={activeNavLabel}
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onPointerDown={(event) => {
+                if (event.button !== 0) return;
+                topbarPointerToggleRef.current = true;
+                window.setTimeout(() => {
+                  topbarPointerToggleRef.current = false;
+                }, 400);
+                setSidebarCollapsed((collapsed) => !collapsed);
+              }}
+              onClick={(event) => {
+                if (event.detail > 0 && topbarPointerToggleRef.current) return;
+                setSidebarCollapsed((collapsed) => !collapsed);
+              }}
+            >
+              {activeNavCollapsed ? (
+                <PanelLeftOpenIcon />
+              ) : (
+                <PanelLeftCloseIcon />
+              )}
+            </Button>
+          )}
+        </div>
+        <nav className="app-topbar-history" aria-label="页面导航">
+          <Button
+            aria-label="后退"
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={isSettingsRoute ? closeSettings : undefined}
+            disabled={!isSettingsRoute}
+          >
+            <ChevronLeftIcon />
+          </Button>
+          <Button
+            aria-label="前进"
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            disabled
+          >
+            <ChevronRightIcon />
+          </Button>
+        </nav>
+      </header>
+
       {!hasPermission && !showPermissionGuide && (
         <Alert
           className="permission-banner cursor-pointer"
@@ -476,97 +605,86 @@ function App() {
         </Alert>
       )}
 
-      <div className={`app-body${sidebarResizing ? " sidebar-resizing" : ""}`}>
-        <aside
-          className={`app-sidebar${sidebarCollapsed ? " collapsed" : ""}${
-            sidebarResizing ? " resizing" : ""
+      {isSettingsRoute ? (
+        <main
+          className={`settings-route${
+            settingsNavCollapsed ? " settings-nav-collapsed" : ""
           }`}
-          style={sidebarCollapsed ? undefined : { width: sidebarWidth }}
         >
-          {sidebarCollapsed ? (
-            <div className="sidebar-rail">
-              <SidebarIconButton
-                label="展开侧边栏"
-                onClick={() => setSidebarCollapsed(false)}
-              >
-                <PanelLeftOpenIcon />
-              </SidebarIconButton>
-              <SidebarIconButton
-                className={monitoring ? "active" : undefined}
-                label={monitoring ? "暂停监控" : "开始监控"}
-                onClick={toggleMonitoring}
-                variant={monitoring ? "default" : "outline"}
-              >
-                {monitoring ? <PauseIcon /> : <PlayIcon />}
-              </SidebarIconButton>
-              <div className="sidebar-rail-spacer" />
-              <SidebarIconButton
-                label="打开设置"
-                onClick={() => setShowSettings(true)}
-              >
-                <SettingsIcon />
-              </SidebarIconButton>
-            </div>
-          ) : (
-            <>
-              <div className="sidebar-header">
-                <div className="sidebar-heading-copy">
-                  <span className="sidebar-kicker">Taskly</span>
-                  <h1 className="sidebar-brand">任务队列</h1>
-                </div>
-                <div className="sidebar-header-actions">
-                  <Badge variant={monitoring ? "default" : "outline"}>
-                    {monitoring ? "监控中" : `${openTodoCount} 个待办`}
-                  </Badge>
-                  <SidebarIconButton
-                    label="折叠侧边栏"
-                    onClick={() => setSidebarCollapsed(true)}
-                    variant="ghost"
-                  >
-                    <PanelLeftCloseIcon />
-                  </SidebarIconButton>
-                </div>
+          <Settings onClose={closeSettings} />
+        </main>
+      ) : (
+        <div className={`app-body${sidebarResizing ? " sidebar-resizing" : ""}`}>
+          <aside
+            className={`app-sidebar${sidebarCollapsed ? " collapsed" : ""}${
+              sidebarResizing ? " resizing" : ""
+            }`}
+            style={sidebarCollapsed ? undefined : { width: sidebarWidth }}
+          >
+            {sidebarCollapsed ? (
+              <div className="sidebar-rail">
+                <SidebarIconButton
+                  className={monitoring ? "active" : undefined}
+                  label={monitoring ? "暂停监控" : "开始监控"}
+                  onClick={toggleMonitoring}
+                  variant={monitoring ? "default" : "outline"}
+                >
+                  {monitoring ? <PauseIcon /> : <PlayIcon />}
+                </SidebarIconButton>
+                <div className="sidebar-rail-spacer" />
+                <SidebarIconButton label="打开设置" onClick={openSettings}>
+                  <SettingsIcon />
+                </SidebarIconButton>
               </div>
-              <ScrollArea className="sidebar-scroll">
-                {isLoaded ? <TodoList /> : <LoadingSkeleton />}
-              </ScrollArea>
-              <div className="sidebar-controls">
-                <span className="sidebar-version">v{__APP_VERSION__}</span>
-                <div className="sidebar-controls-actions">
-                  <SidebarIconButton
-                    className={monitoring ? "active" : undefined}
-                    label={monitoring ? "暂停监控" : "开始监控"}
-                    onClick={toggleMonitoring}
-                    variant={monitoring ? "default" : "outline"}
-                  >
-                    {monitoring ? <PauseIcon /> : <PlayIcon />}
-                  </SidebarIconButton>
-                  <SidebarIconButton
-                    label="打开设置"
-                    onClick={() => setShowSettings(true)}
-                  >
-                    <SettingsIcon />
-                  </SidebarIconButton>
+            ) : (
+              <>
+                <div className="sidebar-header">
+                  <div className="sidebar-heading-copy">
+                    <span className="sidebar-kicker">Taskly</span>
+                    <h1 className="sidebar-brand">任务队列</h1>
+                  </div>
+                  <div className="sidebar-header-actions">
+                    <Badge variant={monitoring ? "default" : "outline"}>
+                      {monitoring ? "监控中" : `${openTodoCount} 个待办`}
+                    </Badge>
+                  </div>
                 </div>
-              </div>
-              <div
-                aria-label="调整侧边栏宽度"
-                aria-orientation="vertical"
-                className="sidebar-resize-handle"
-                onKeyDown={resizeSidebarWithKeyboard}
-                onPointerDown={startSidebarResize}
-                role="separator"
-                tabIndex={0}
-              />
-            </>
-          )}
-        </aside>
-        <section className="app-chat">
-          <AgentChatPane />
-        </section>
-      </div>
-
-      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+                <ScrollArea className="sidebar-scroll">
+                  {isLoaded ? <TodoList /> : <LoadingSkeleton />}
+                </ScrollArea>
+                <div className="sidebar-controls">
+                  <span className="sidebar-version">v{__APP_VERSION__}</span>
+                  <div className="sidebar-controls-actions">
+                    <SidebarIconButton
+                      className={monitoring ? "active" : undefined}
+                      label={monitoring ? "暂停监控" : "开始监控"}
+                      onClick={toggleMonitoring}
+                      variant={monitoring ? "default" : "outline"}
+                    >
+                      {monitoring ? <PauseIcon /> : <PlayIcon />}
+                    </SidebarIconButton>
+                    <SidebarIconButton label="打开设置" onClick={openSettings}>
+                      <SettingsIcon />
+                    </SidebarIconButton>
+                  </div>
+                </div>
+                <div
+                  aria-label="调整侧边栏宽度"
+                  aria-orientation="vertical"
+                  className="sidebar-resize-handle"
+                  onKeyDown={resizeSidebarWithKeyboard}
+                  onPointerDown={startSidebarResize}
+                  role="separator"
+                  tabIndex={0}
+                />
+              </>
+            )}
+          </aside>
+          <section className="app-chat">
+            <AgentChatPane />
+          </section>
+        </div>
+      )}
       {showPermissionGuide && (
         <PermissionGuide
           onGranted={() => {

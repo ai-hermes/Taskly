@@ -3,7 +3,7 @@ import { recognizeImage, startOcrEngine } from "./ocr";
 import { OpenAIProvider } from "./llm";
 import { hashString, normalizeTitle, FRAME_CACHE_SIZE, FRAME_CACHE_TTL_MS } from "./dedup";
 import { filterRegionsByFences, rebuildText } from "./fence";
-import type { AppConfig, TodoItem, LLMProvider } from "@/types";
+import type { AppConfig, TodoItem, LLMProvider, CaptureResult } from "@/types";
 
 /**
  * Main monitoring service that orchestrates:
@@ -116,13 +116,46 @@ export class MonitorService {
         return;
       }
 
-      // 2. Capture screenshot
-      const imagePath = await invoke<string>("capture_screenshot", {
-        whitelist: this.config.whitelist,
-      });
-      console.debug("[Monitor] screenshot path=%o", imagePath);
+      // 2. Capture screenshot of the *validated* frontmost app's window. We
+      // pass targetApp so the native side captures that exact app (not just any
+      // whitelisted window in z-order), and never falls back to full-screen.
+      let capture: CaptureResult;
+      try {
+        capture = await invoke<CaptureResult>("capture_screenshot", {
+          whitelist: this.config.whitelist,
+          targetApp: appName,
+        });
+      } catch (err) {
+        // No monitored window resolved (e.g. app minimized) -> skip this tick
+        // rather than risk capturing/processing the wrong content.
+        console.debug("[Monitor] skip: capture failed/no window: %o", err);
+        return;
+      }
+      const imagePath = capture.path;
+      console.debug(
+        "[Monitor] captured path=%o owner=%o %dx%d",
+        imagePath,
+        capture.ownerApp,
+        capture.width,
+        capture.height
+      );
       if (!imagePath) {
         console.warn("[Monitor] skip: empty screenshot path");
+        return;
+      }
+
+      // 2.5 Cross-check the captured window's real owner against the whitelist.
+      // The fence and evidence must belong to the app we actually captured, so
+      // if the owner drifted off-whitelist (race / wrong window), skip.
+      const capturedKey = this.config.whitelist.find(
+        (name) => name && capture.ownerApp.includes(name)
+      );
+      if (!capturedKey) {
+        console.debug(
+          "[Monitor] skip: captured owner %o not in whitelist %o",
+          capture.ownerApp,
+          this.config.whitelist
+        );
         return;
       }
 
@@ -153,12 +186,9 @@ export class MonitorService {
       // box). The full screenshot still serves as evidence.
       let details = ocrResult.details ?? [];
       let fencedText = ocrText;
-      const whitelistKey = this.config.whitelist.find(
-        (name) => name && appName.includes(name)
-      );
-      const fences = whitelistKey
-        ? this.config.captureFences?.[whitelistKey]
-        : undefined;
+      // Key the fence off the *captured* window's owner (validated above), so
+      // we never apply App A's fence to App B's screenshot.
+      const fences = this.config.captureFences?.[capturedKey];
       if (fences && fences.length > 0 && details.length > 0) {
         const kept = filterRegionsByFences(
           details,

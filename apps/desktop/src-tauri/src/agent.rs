@@ -11,8 +11,8 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
-use tokio::sync::{mpsc, oneshot};
 use tokio::sync::Mutex as AsyncMutex;
+use tokio::sync::{mpsc, oneshot};
 
 const LOG_EVENT: &str = "todo-exec://log";
 const PHASE_EVENT: &str = "todo-exec://phase";
@@ -262,9 +262,7 @@ fn find_permission_gate_ext() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let exe_dir = exe.parent()?.to_path_buf();
     let pkg = find_pi_package_dir(&exe_dir)?;
-    let p = pkg
-        .join("taskly-extensions")
-        .join("permission-gate.ts");
+    let p = pkg.join("taskly-extensions").join("permission-gate.ts");
     if p.exists() {
         Some(p)
     } else {
@@ -367,6 +365,7 @@ fn provider_api_dialect(provider: &str) -> &'static str {
 /// Configure the bundled pi agent to use Taskly's model settings by writing a
 /// dedicated `models.json` (provider baseUrl + apiKey + model) into a private
 /// agent dir, and returning the extra CLI args + env vars to point pi at it.
+#[allow(clippy::type_complexity)]
 fn setup_llm_env(
     app: &tauri::AppHandle,
     llm: &AgentLlmConfig,
@@ -473,7 +472,13 @@ fn emit_log(app: &tauri::AppHandle, run_id: &str, todo_id: &str, stream: &str, l
     );
 }
 
-fn emit_phase(app: &tauri::AppHandle, run_id: &str, todo_id: &str, phase: &str, detail: Option<&str>) {
+fn emit_phase(
+    app: &tauri::AppHandle,
+    run_id: &str,
+    todo_id: &str,
+    phase: &str,
+    detail: Option<&str>,
+) {
     let _ = app.emit(
         PHASE_EVENT,
         PhaseEvent {
@@ -558,6 +563,7 @@ const SAFE_MODE_PREAMBLE: &str = "\
 - 不要执行破坏性命令（如 rm -rf 非工作区路径）。\n\n";
 
 /// Run the agent process, streaming output as events and into the log file.
+#[allow(clippy::too_many_arguments)]
 async fn run_agent(
     app: &tauri::AppHandle,
     logger: &mut RunLogger,
@@ -570,9 +576,7 @@ async fn run_agent(
     permission_mode: &str,
     llm: Option<&AgentLlmConfig>,
 ) -> Result<Option<i32>, String> {
-    let uses_custom = agent_command
-        .map(|c| !c.trim().is_empty())
-        .unwrap_or(false);
+    let uses_custom = agent_command.map(|c| !c.trim().is_empty()).unwrap_or(false);
     let AgentInvocation {
         program,
         mut args,
@@ -772,7 +776,9 @@ pub async fn execute_todo_once(
             .map(|l| !l.api_key.trim().is_empty() && !l.model.trim().is_empty())
             .unwrap_or(false);
         if !has_key {
-            return Err("未配置模型 API Key，请在「设置」中填写 OpenAI 的 API Key 与模型后重试。".into());
+            return Err(
+                "未配置模型 API Key，请在「设置」中填写 OpenAI 的 API Key 与模型后重试。".into(),
+            );
         }
     }
 
@@ -780,7 +786,10 @@ pub async fn execute_todo_once(
     let mut logger = RunLogger::new(&workspace_path, &req.run_id)?;
 
     emit_phase(&app, &req.run_id, &req.todo_id, "preparing", None);
-    logger.write("system", &format!("run {} start (todo {})", req.run_id, req.todo_id));
+    logger.write(
+        "system",
+        &format!("run {} start (todo {})", req.run_id, req.todo_id),
+    );
 
     emit_phase(&app, &req.run_id, &req.todo_id, "agent_running", None);
     let agent_result = run_agent(
@@ -836,7 +845,10 @@ pub async fn execute_todo_once(
         if validation_results.is_empty() {
             "agent 执行成功（未配置校验命令）".into()
         } else {
-            format!("agent 执行成功，{} 条校验全部通过", validation_results.len())
+            format!(
+                "agent 执行成功，{} 条校验全部通过",
+                validation_results.len()
+            )
         }
     } else {
         error.clone().unwrap_or_else(|| "执行失败".into())
@@ -948,7 +960,10 @@ fn summarize_event(ev: &serde_json::Value) -> Option<(&'static str, String)> {
                 .unwrap_or("");
             Some((
                 "stderr",
-                format!("⟳ 连接/服务异常，正在自动重试（第 {}/{} 次）：{}", attempt, max, emsg),
+                format!(
+                    "⟳ 连接/服务异常，正在自动重试（第 {}/{} 次）：{}",
+                    attempt, max, emsg
+                ),
             ))
         }
         "auto_retry_end" => {
@@ -1363,7 +1378,11 @@ pub async fn send_agent_message(
         "prompt" => "prompt",
         _ => "follow_up",
     };
-    send_rpc(&run_id, serde_json::json!({ "type": ty, "message": message })).await
+    send_rpc(
+        &run_id,
+        serde_json::json!({ "type": ty, "message": message }),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -1523,9 +1542,15 @@ mod tests {
 
     #[test]
     fn guess_mime_known_types() {
-        assert_eq!(guess_mime(Path::new("a.docx")), "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        assert_eq!(
+            guess_mime(Path::new("a.docx")),
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        );
         assert_eq!(guess_mime(Path::new("a.PNG")), "image/png");
-        assert_eq!(guess_mime(Path::new("a.unknown")), "application/octet-stream");
+        assert_eq!(
+            guess_mime(Path::new("a.unknown")),
+            "application/octet-stream"
+        );
     }
 
     #[test]
@@ -1552,7 +1577,10 @@ mod tests {
             "  cargo build ".to_string(),
         ];
         let out = sanitize_validation_commands(&input);
-        assert_eq!(out, vec!["pnpm test".to_string(), "cargo build".to_string()]);
+        assert_eq!(
+            out,
+            vec!["pnpm test".to_string(), "cargo build".to_string()]
+        );
     }
 
     #[test]

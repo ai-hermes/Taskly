@@ -12,6 +12,7 @@ use tauri::{
 
 const TRAY_ICON: tauri::image::Image<'_> = tauri::include_image!("./icons/trayIcon.png");
 const DOCK_ICON: tauri::image::Image<'_> = tauri::include_image!("./icons/app-icon-1024.png");
+#[cfg(target_os = "macos")]
 const DOCK_ICON_PNG: &[u8] = include_bytes!("../icons/app-icon-1024.png");
 
 #[cfg(target_os = "macos")]
@@ -34,9 +35,11 @@ fn set_macos_dock_icon() {}
 async fn capture_screenshot(
     _app: tauri::AppHandle,
     whitelist: Option<Vec<String>>,
-) -> Result<String, String> {
+    target_app: Option<String>,
+) -> Result<screenshot::CaptureResult, String> {
     let whitelist = whitelist.unwrap_or_default();
-    screenshot::capture_focused_window(&whitelist).map_err(|e| format!("Screenshot failed: {}", e))
+    screenshot::capture_focused_window(&whitelist, target_app.as_deref())
+        .map_err(|e| format!("Screenshot failed: {}", e))
 }
 
 #[tauri::command]
@@ -233,14 +236,14 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app_handle, event| match event {
+        .run(|_app_handle, event| match event {
             RunEvent::Ready => {
                 set_macos_dock_icon();
             }
             // Clicking the Dock icon (macOS) re-shows and focuses the main window.
             #[cfg(target_os = "macos")]
             RunEvent::Reopen { .. } => {
-                if let Some(window) = app_handle.get_webview_window("main") {
+                if let Some(window) = _app_handle.get_webview_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
                 }

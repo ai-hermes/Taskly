@@ -7,7 +7,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { normalizeFence } from "@/services/fence";
-import type { FenceRect } from "@/types";
+import type { CaptureResult, FenceRect } from "@/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,11 +49,12 @@ export function FenceWizard({ appName, fences, onSave, onClear, onClose }: Fence
   const capture = useCallback(async () => {
     setCaptureError(null);
     try {
-      const path = await invoke<string>("capture_screenshot", {
+      const result = await invoke<CaptureResult>("capture_screenshot", {
         whitelist: [appName],
+        targetApp: appName,
       });
-      if (!path) throw new Error("截图失败：未生成图片");
-      setScreenshotPath(path);
+      if (!result?.path) throw new Error("截图失败：未生成图片");
+      setScreenshotPath(result.path);
       setStep(2);
     } catch (err) {
       setCaptureError(
