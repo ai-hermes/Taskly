@@ -170,7 +170,7 @@ export function TodoEditModal({
                       merged.setHours(
                         base.getHours(),
                         base.getMinutes(),
-                        base.getSeconds(),
+                        0,
                         0
                       );
                       setDueDate(merged);
@@ -186,14 +186,14 @@ export function TodoEditModal({
                 aria-label="截止时间"
                 step="60"
                 lang="en-GB"
-                value={toTimeInputValue(dueDate)}
+                value={toTimeInputValue(dueDate).slice(0, 5)}
                 onChange={(event) => {
                   const value = event.target.value;
                   if (!value) return;
-                  const [h, m, s] = value.split(":").map(Number);
+                  const [h, m] = value.split(":").map(Number);
                   const base = dueDate ?? new Date();
                   const merged = new Date(base);
-                  merged.setHours(h || 0, m || 0, s || 0, 0);
+                  merged.setHours(h || 0, m || 0, 0, 0);
                   setDueDate(merged);
                 }}
                 className="todo-due-time appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
