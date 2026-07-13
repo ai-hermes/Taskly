@@ -2,7 +2,9 @@ import { useState } from "react";
 import { LockKeyholeIcon } from "lucide-react";
 import {
   checkScreenRecordingPermission,
+  getScreenRecordingDebugInfo,
   openScreenRecordingSettings,
+  probeScreenCapturePermission,
   requestScreenRecordingPermission,
 } from "@/services/permissions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -29,10 +31,24 @@ interface Props {
 export function PermissionGuide({ onGranted, onDismiss }: Props) {
   const [requesting, setRequesting] = useState(false);
   const [prompted, setPrompted] = useState(false);
+  const [debugInfo, setDebugInfo] = useState("");
 
   const handleRequest = async () => {
     setRequesting(true);
-    const granted = await requestScreenRecordingPermission();
+    await requestScreenRecordingPermission();
+    const granted = await probeScreenCapturePermission();
+    setRequesting(false);
+    setPrompted(true);
+    if (granted) {
+      onGranted();
+    }
+  };
+
+  const handleProbe = async () => {
+    setRequesting(true);
+    const info = await getScreenRecordingDebugInfo();
+    setDebugInfo(info);
+    const granted = await probeScreenCapturePermission();
     setRequesting(false);
     setPrompted(true);
     if (granted) {
@@ -76,6 +92,7 @@ export function PermissionGuide({ onGranted, onDismiss }: Props) {
           <Alert>
             <AlertDescription>
               如果仍未生效，请在系统设置中确认已勾选 Taskly，并重启应用。
+              {debugInfo ? ` 当前进程信息：${debugInfo}` : ""}
             </AlertDescription>
           </Alert>
         )}
@@ -93,6 +110,9 @@ export function PermissionGuide({ onGranted, onDismiss }: Props) {
           </Button>
           <Button type="button" variant="outline" onClick={handleRecheck}>
             我已授权，重新检查
+          </Button>
+          <Button type="button" variant="outline" onClick={handleProbe}>
+            触发系统截图检测
           </Button>
           <Button type="button" onClick={handleRequest} disabled={requesting}>
             {requesting && <Spinner data-icon="inline-start" />}

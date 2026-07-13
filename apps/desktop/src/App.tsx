@@ -8,6 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { TodoList } from "@/components/TodoList";
 import { Settings } from "@/components/Settings";
 import { AgentChatPane } from "@/components/AgentChatPane";
@@ -506,7 +507,17 @@ function App() {
 
   return (
     <div className="app">
-      <header className="app-topbar" data-tauri-drag-region>
+      <header
+        className="app-topbar"
+        onPointerDown={(event) => {
+          if (event.button !== 0) return;
+          const target = event.target as HTMLElement | null;
+          if (target?.closest("[data-no-window-drag='true']")) return;
+          void getCurrentWindow().startDragging().catch((err) => {
+            console.error("Failed to start window dragging:", err);
+          });
+        }}
+      >
         <div className="app-topbar-left">
           {isSettingsRoute ? (
             <Button
@@ -515,8 +526,10 @@ function App() {
               type="button"
               variant="ghost"
               size="icon-sm"
+              data-no-window-drag="true"
               onPointerDown={(event) => {
                 if (event.button !== 0) return;
+                event.stopPropagation();
                 topbarPointerToggleRef.current = true;
                 window.setTimeout(() => {
                   topbarPointerToggleRef.current = false;
@@ -541,8 +554,10 @@ function App() {
               type="button"
               variant="ghost"
               size="icon-sm"
+              data-no-window-drag="true"
               onPointerDown={(event) => {
                 if (event.button !== 0) return;
+                event.stopPropagation();
                 topbarPointerToggleRef.current = true;
                 window.setTimeout(() => {
                   topbarPointerToggleRef.current = false;
@@ -568,6 +583,7 @@ function App() {
             type="button"
             variant="ghost"
             size="icon-sm"
+            data-no-window-drag="true"
             onClick={isSettingsRoute ? closeSettings : undefined}
             disabled={!isSettingsRoute}
           >
@@ -578,6 +594,7 @@ function App() {
             type="button"
             variant="ghost"
             size="icon-sm"
+            data-no-window-drag="true"
             disabled
           >
             <ChevronRightIcon />

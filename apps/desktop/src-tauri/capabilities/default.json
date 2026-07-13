@@ -4,6 +4,7 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-start-dragging",
     "store:allow-get",
     "store:allow-set",
     "store:allow-save",
@@ -14,6 +15,20 @@
     "notification:allow-request-permission",
     "dialog:default",
     "opener:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        { "path": "$APPDATA/models" },
+        { "path": "$APPDATA/models/**" }
+      ]
+    },
+    {
+      "identifier": "opener:allow-reveal-item-in-dir",
+      "allow": [
+        { "path": "$APPDATA/models" },
+        { "path": "$APPDATA/models/**" }
+      ]
+    },
     "core:event:default"
   ]
 }

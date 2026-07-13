@@ -76,6 +76,52 @@ fn request_screen_recording_permission() -> bool {
 }
 
 #[tauri::command]
+async fn probe_screen_capture_permission() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        let output = std::process::Command::new("screencapture")
+            .arg("-x")
+            .arg("/tmp/taskly-permission-probe.png")
+            .output();
+
+        match output {
+            Ok(result) => {
+                if !result.status.success() {
+                    let stderr = String::from_utf8_lossy(&result.stderr);
+                    eprintln!(
+                        "[permissions] screencapture probe failed: status={}, stderr={}",
+                        result.status, stderr
+                    );
+                }
+            }
+            Err(err) => {
+                eprintln!("[permissions] screencapture probe exec error: {}", err);
+            }
+        }
+    }
+
+    permissions::has_screen_recording_permission()
+}
+
+#[tauri::command]
+fn get_screen_recording_debug_info() -> String {
+    #[cfg(target_os = "macos")]
+    {
+        let pid = std::process::id();
+        let exe = std::env::current_exe()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| "<unknown-exe>".into());
+        let app = std::env::var("__CFBundleIdentifier").unwrap_or_else(|_| "<none>".into());
+        format!("pid={pid}; exe={exe}; bundle={app}")
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        "non-macos".to_string()
+    }
+}
+
+#[tauri::command]
 fn open_screen_recording_settings() -> Result<(), String> {
     permissions::open_screen_recording_settings().map_err(|e| e.to_string())
 }
@@ -102,10 +148,34 @@ async fn is_whitelisted_app(whitelist: Option<Vec<String>>) -> Result<bool, Stri
 async fn recognize_image(
     app: tauri::AppHandle,
     image_path: String,
+    profile: String,
 ) -> Result<ocr::OcrResponse, String> {
-    tauri::async_runtime::spawn_blocking(move || ocr::recognize_image(&app, &image_path))
+    tauri::async_runtime::spawn_blocking(move || ocr::recognize_image(&app, &image_path, &profile))
         .await
         .map_err(|e| format!("OCR task failed: {}", e))?
+}
+
+#[tauri::command]
+async fn get_ocr_model_info(
+    app: tauri::AppHandle,
+    profile: String,
+) -> Result<ocr::OcrModelInfo, String> {
+    Ok(ocr::get_model_info(&app, &profile))
+}
+
+#[tauri::command]
+async fn ensure_ocr_model_profile(
+    app: tauri::AppHandle,
+    profile: String,
+) -> Result<ocr::OcrModelInfo, String> {
+    tauri::async_runtime::spawn_blocking(move || ocr::ensure_model_profile(&app, &profile))
+        .await
+        .map_err(|e| format!("OCR model ensure task failed: {}", e))?
+}
+
+#[tauri::command]
+async fn reset_ocr_engine() -> Result<(), String> {
+    ocr::reset_engine()
 }
 
 #[tauri::command]
@@ -158,10 +228,15 @@ pub fn run() {
             is_whitelisted_app,
             list_running_apps,
             recognize_image,
+            get_ocr_model_info,
+            ensure_ocr_model_profile,
+            reset_ocr_engine,
             show_main_window,
             set_debugger_console,
             check_screen_recording_permission,
             request_screen_recording_permission,
+            probe_screen_capture_permission,
+            get_screen_recording_debug_info,
             open_screen_recording_settings,
             agent::prepare_todo_workspace,
             agent::copy_assets_to_workspace,
