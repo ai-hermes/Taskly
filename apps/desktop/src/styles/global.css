@@ -573,11 +573,11 @@ textarea:focus-visible {
 
 .todo-item {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
+  grid-template-columns: 16px 22px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-height: 36px;
-  padding: 4px 4px 4px 8px;
+  padding: 4px 4px 4px 4px;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   transition: background-color 150ms var(--ease-out), border-color 150ms var(--ease-out), transform 150ms var(--ease-out);
@@ -3695,6 +3695,79 @@ h3 {
   gap: 2px;
 }
 
+/* Drag-and-drop tree */
+.todo-sortable {
+  list-style: none;
+  margin: 0;
+}
+
+.todo-sortable.is-dragging {
+  opacity: 0.4;
+}
+
+.todo-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-quaternary);
+  cursor: grab;
+  touch-action: none;
+  opacity: 0;
+  transition: opacity 140ms ease, color 140ms ease, background 140ms ease;
+}
+
+.todo-item:hover .todo-drag-handle,
+.todo-item.active .todo-drag-handle {
+  opacity: 1;
+}
+
+.todo-drag-handle:hover {
+  color: var(--text-secondary);
+  background: var(--surface-card);
+}
+
+.todo-drag-handle:active {
+  cursor: grabbing;
+}
+
+.todo-drag-handle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.todo-drop-zone {
+  padding: 3px;
+  margin: -3px;
+  border-radius: var(--radius-md);
+  transition: background 140ms ease, box-shadow 140ms ease;
+}
+
+.todo-drop-zone.is-over {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.todo-drag-overlay {
+  cursor: grabbing;
+}
+
+.todo-drag-overlay .todo-item {
+  border-color: var(--border-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow-popover);
+}
+
+.todo-drag-overlay .todo-drag-handle {
+  opacity: 1;
+  cursor: grabbing;
+}
+
 .empty-hint {
   min-height: 62px;
   padding: 14px;
@@ -4511,8 +4584,8 @@ h3 {
 .settings-body [data-slot="scroll-area-viewport"] > div {
   display: grid !important;
   align-content: start;
-  gap: 14px;
-  padding: 16px;
+  gap: 10px;
+  padding: 14px;
 }
 
 .settings-body [data-slot="tabs-content"] {
@@ -4526,12 +4599,12 @@ h3 {
 
 .settings-body [data-slot="tabs-content"][data-state="active"] {
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 
 .settings-section-grid {
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 
 .settings-section-grid-2 {
@@ -4541,8 +4614,8 @@ h3 {
 .settings-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px 18px;
+  gap: 10px;
+  padding: 14px 16px;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--surface);
@@ -4565,7 +4638,7 @@ h3 {
 .settings-disclosure-trigger {
   align-items: center;
   gap: 12px;
-  padding: 16px 18px;
+  padding: 10px 16px;
   color: var(--text-primary);
   text-decoration: none;
 }
@@ -4608,7 +4681,7 @@ h3 {
 
 .settings-disclosure-content > div {
   height: auto !important;
-  padding: 0 18px 16px;
+  padding: 2px 16px 14px;
 }
 
 .settings-disclosure-content [data-slot="field-group"] {
@@ -4760,7 +4833,7 @@ h3 {
 }
 
 .settings-section-heading {
-  padding-bottom: 12px;
+  padding-bottom: 10px;
   border-bottom: 1px solid var(--border);
 }
 

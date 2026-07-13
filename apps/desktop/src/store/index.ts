@@ -39,6 +39,7 @@ interface TodoStore {
   removeTodo: (id: string) => void;
   updateTodo: (id: string, patch: Partial<TodoItem>) => void;
   confirmTodo: (id: string) => void;
+  reorderTodos: (todos: TodoItem[]) => void;
   setTodos: (todos: TodoItem[]) => void;
   setTombstones: (tombstones: Tombstone[]) => void;
   setWorkspace: (id: string, workspace: TodoWorkspaceContext) => void;
@@ -147,6 +148,7 @@ export const useTodoStore = create<TodoStore>((set) => ({
         )
       ),
     })),
+  reorderTodos: (todos) => set({ todos }),
   setTodos: (todos) =>
     set({
       todos: dedupPendingTodos(
