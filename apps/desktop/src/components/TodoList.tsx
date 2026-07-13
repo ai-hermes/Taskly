@@ -316,7 +316,6 @@ function TodoBranch({
               <TooltipTrigger asChild>
                 <span
                   className="section-tip-trigger"
-                  role="button"
                   tabIndex={0}
                   aria-label="说明"
                   onClick={(event) => event.stopPropagation()}
