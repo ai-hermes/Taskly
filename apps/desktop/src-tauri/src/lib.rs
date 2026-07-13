@@ -148,10 +148,38 @@ async fn is_whitelisted_app(whitelist: Option<Vec<String>>) -> Result<bool, Stri
 async fn recognize_image(
     app: tauri::AppHandle,
     image_path: String,
+    profile: String,
 ) -> Result<ocr::OcrResponse, String> {
-    tauri::async_runtime::spawn_blocking(move || ocr::recognize_image(&app, &image_path))
+    tauri::async_runtime::spawn_blocking(move || {
+        ocr::recognize_image(&app, &image_path, &profile)
+    })
         .await
         .map_err(|e| format!("OCR task failed: {}", e))?
+}
+
+#[tauri::command]
+async fn get_ocr_model_info(
+    app: tauri::AppHandle,
+    profile: String,
+) -> Result<ocr::OcrModelInfo, String> {
+    Ok(ocr::get_model_info(&app, &profile))
+}
+
+#[tauri::command]
+async fn ensure_ocr_model_profile(
+    app: tauri::AppHandle,
+    profile: String,
+) -> Result<ocr::OcrModelInfo, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        ocr::ensure_model_profile(&app, &profile)
+    })
+    .await
+    .map_err(|e| format!("OCR model ensure task failed: {}", e))?
+}
+
+#[tauri::command]
+async fn reset_ocr_engine() -> Result<(), String> {
+    ocr::reset_engine()
 }
 
 #[tauri::command]
@@ -204,6 +232,9 @@ pub fn run() {
             is_whitelisted_app,
             list_running_apps,
             recognize_image,
+            get_ocr_model_info,
+            ensure_ocr_model_profile,
+            reset_ocr_engine,
             show_main_window,
             set_debugger_console,
             check_screen_recording_permission,

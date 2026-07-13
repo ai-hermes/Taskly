@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { recognizeImage, startOcrEngine } from "./ocr";
+import { ensureOcrModelProfile, recognizeImage, startOcrEngine } from "./ocr";
 import { OpenAIProvider } from "./llm";
 import { hashString, normalizeTitle, FRAME_CACHE_SIZE, FRAME_CACHE_TTL_MS } from "./dedup";
 import { filterRegionsByFences, rebuildText } from "./fence";
@@ -160,8 +160,14 @@ export class MonitorService {
       }
 
       // 3. OCR recognition
+      if (this.config.ocrModelDownloadEnabled) {
+        await ensureOcrModelProfile(this.config.ocrModelProfile);
+      }
       console.debug("[Monitor] running OCR on %s", imagePath);
-      const ocrResult = await recognizeImage(imagePath);
+      const ocrResult = await recognizeImage(
+        imagePath,
+        this.config.ocrModelProfile
+      );
       if (!ocrResult.success) {
         console.error("[Monitor] OCR failed: %o", ocrResult.error);
         if (ocrResult.error) {

@@ -224,6 +224,8 @@ const defaultConfig: AppConfig = {
   serverUrl: "http://localhost:8080",
   startupOpenMainWindow: false,
   debuggerConsoleEnabled: false,
+  ocrModelProfile: "ppocrv6_small",
+  ocrModelDownloadEnabled: true,
   dedupTombstoneTtlMinutes: 30,
   remindersEnabled: true,
   agentCommand: "",

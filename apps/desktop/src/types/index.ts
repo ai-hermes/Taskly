@@ -265,6 +265,31 @@ export interface OcrResult {
   error?: string;
 }
 
+export interface OcrModelAssetInfo {
+  name: string;
+  path: string;
+  exists: boolean;
+  sizeBytes?: number;
+}
+
+export interface OcrModelInfo {
+  ready: boolean;
+  engineCached: boolean;
+  selectedProfile: string;
+  modelsDir?: string;
+  sourceLabel?: string;
+  assets: OcrModelAssetInfo[];
+  error?: string;
+}
+
+export type OcrModelProfileId =
+  | "ppocrv4"
+  | "ppocrv5_mobile"
+  | "ppocrv5_mobile_fp16"
+  | "ppocrv6_tiny"
+  | "ppocrv6_small"
+  | "ppocrv6_medium";
+
 export interface ExtractTodoOptions {
   knownTitles?: string[];
   screenshotPath?: string;
@@ -309,6 +334,9 @@ export interface AppConfig {
   serverUrl: string;
   startupOpenMainWindow: boolean;
   debuggerConsoleEnabled: boolean;
+  ocrModelProfile: OcrModelProfileId;
+  /** Whether future OCR model bootstrap/download is allowed when assets are missing. */
+  ocrModelDownloadEnabled: boolean;
   /** Minutes to block re-detection of a deleted todo (0 disables tombstones). */
   dedupTombstoneTtlMinutes: number;
   /** Whether to fire a system notification when a todo's dueDate arrives. */
