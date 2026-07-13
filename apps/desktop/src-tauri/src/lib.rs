@@ -112,7 +112,7 @@ fn get_screen_recording_debug_info() -> String {
             .map(|p| p.display().to_string())
             .unwrap_or_else(|_| "<unknown-exe>".into());
         let app = std::env::var("__CFBundleIdentifier").unwrap_or_else(|_| "<none>".into());
-        return format!("pid={pid}; exe={exe}; bundle={app}");
+        format!("pid={pid}; exe={exe}; bundle={app}")
     }
 
     #[cfg(not(target_os = "macos"))]
@@ -150,9 +150,7 @@ async fn recognize_image(
     image_path: String,
     profile: String,
 ) -> Result<ocr::OcrResponse, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        ocr::recognize_image(&app, &image_path, &profile)
-    })
+    tauri::async_runtime::spawn_blocking(move || ocr::recognize_image(&app, &image_path, &profile))
         .await
         .map_err(|e| format!("OCR task failed: {}", e))?
 }
@@ -170,11 +168,9 @@ async fn ensure_ocr_model_profile(
     app: tauri::AppHandle,
     profile: String,
 ) -> Result<ocr::OcrModelInfo, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        ocr::ensure_model_profile(&app, &profile)
-    })
-    .await
-    .map_err(|e| format!("OCR model ensure task failed: {}", e))?
+    tauri::async_runtime::spawn_blocking(move || ocr::ensure_model_profile(&app, &profile))
+        .await
+        .map_err(|e| format!("OCR model ensure task failed: {}", e))?
 }
 
 #[tauri::command]

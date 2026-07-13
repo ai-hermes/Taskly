@@ -440,7 +440,11 @@ pub fn get_model_info(app: &AppHandle, profile: &str) -> OcrModelInfo {
     let spec = resolve_profile(profile);
     let engine_cached = OCR_ENGINE
         .lock()
-        .map(|lock| lock.as_ref().map(|c| c.profile_id == spec.id).unwrap_or(false))
+        .map(|lock| {
+            lock.as_ref()
+                .map(|c| c.profile_id == spec.id)
+                .unwrap_or(false)
+        })
         .unwrap_or(false);
 
     let model_dirs: Vec<PathBuf> = collect_model_sources(app)
@@ -480,8 +484,22 @@ pub fn ensure_model_profile(app: &AppHandle, profile: &str) -> Result<OcrModelIn
     let source_dirs = collect_model_sources(app);
     let model_dirs: Vec<PathBuf> = source_dirs.iter().map(|(path, _)| path.clone()).collect();
 
-    download_missing_asset(app, &target_dir, &model_dirs, spec.det_exact, spec.det_prefix, spec.download_det)?;
-    download_missing_asset(app, &target_dir, &model_dirs, spec.rec_exact, spec.rec_prefix, spec.download_rec)?;
+    download_missing_asset(
+        app,
+        &target_dir,
+        &model_dirs,
+        spec.det_exact,
+        spec.det_prefix,
+        spec.download_det,
+    )?;
+    download_missing_asset(
+        app,
+        &target_dir,
+        &model_dirs,
+        spec.rec_exact,
+        spec.rec_prefix,
+        spec.download_rec,
+    )?;
     download_missing_asset(
         app,
         &target_dir,
@@ -505,7 +523,12 @@ pub fn reset_engine() -> Result<(), String> {
 fn build_assets(model_dirs: &[PathBuf], spec: &ModelProfileSpec) -> Vec<OcrModelAssetInfo> {
     let det = build_asset_info(model_dirs, "检测模型", spec.det_exact, spec.det_prefix);
     let rec = build_asset_info(model_dirs, "识别模型", spec.rec_exact, spec.rec_prefix);
-    let charset = build_asset_info(model_dirs, "字符集", spec.charset_exact, spec.charset_prefix);
+    let charset = build_asset_info(
+        model_dirs,
+        "字符集",
+        spec.charset_exact,
+        spec.charset_prefix,
+    );
     vec![det, rec, charset]
 }
 
