@@ -4638,7 +4638,7 @@ h3 {
 .settings-disclosure-trigger {
   align-items: center;
   gap: 12px;
-  padding: 10px 16px;
+  padding: 6px 16px;
   color: var(--text-primary);
   text-decoration: none;
 }
@@ -5338,7 +5338,7 @@ button.settings-status-card:active {
   }
 
   .settings-disclosure-trigger {
-    padding: 12px 14px;
+    padding: 8px 14px;
   }
 
   .settings-disclosure-content > div {
