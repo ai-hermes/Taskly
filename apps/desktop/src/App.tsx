@@ -658,7 +658,6 @@ function App() {
                 <div className="sidebar-header">
                   <div className="sidebar-heading-copy">
                     <span className="sidebar-kicker">Taskly</span>
-                    <h1 className="sidebar-brand">任务队列</h1>
                   </div>
                   <div className="sidebar-header-actions">
                     <Badge variant={monitoring ? "default" : "outline"}>

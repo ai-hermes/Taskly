@@ -3781,6 +3781,7 @@ h3 {
 /* Parent node (group header): chevron on the left, no underline. */
 .todo-list-container .section-heading.section-toggle {
   align-items: center;
+  justify-content: flex-start;
   min-height: 30px;
   padding: 0 6px;
   border-radius: var(--radius-sm);
