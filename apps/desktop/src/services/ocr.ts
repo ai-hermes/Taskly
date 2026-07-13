@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { OcrModelInfo, OcrModelProfileId, OcrResult } from "@/types";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { OcrDownloadProgress, OcrModelInfo, OcrModelProfileId, OcrResult } from "@/types";
 
 /**
  * The OCR engine is now initialized lazily in Rust through ocr-rs.
@@ -32,6 +33,14 @@ export async function ensureOcrModelProfile(
 
 export async function resetOcrEngine(): Promise<void> {
   return invoke("reset_ocr_engine");
+}
+
+export function listenOcrDownloadProgress(
+  callback: (progress: OcrDownloadProgress) => void
+): Promise<UnlistenFn> {
+  return listen<OcrDownloadProgress>("ocr-model://download-progress", (e) =>
+    callback(e.payload)
+  );
 }
 
 /**

@@ -17,6 +17,7 @@ import { setDebuggerConsole } from "@/services/debugger";
 import {
   ensureOcrModelProfile,
   getOcrModelInfo,
+  listenOcrDownloadProgress,
   resetOcrEngine,
 } from "@/services/ocr";
 import { saveConfig } from "@/services/storage";
@@ -30,6 +31,7 @@ import {
 import type {
   AppConfig,
   FenceRect,
+  OcrDownloadProgress,
   OcrModelInfo,
   OcrModelProfileId,
   TodoExecutionStatus,
@@ -315,6 +317,7 @@ function formatBytes(value?: number): string {
 function OcrModelManager({
   downloading,
   downloadEnabled,
+  downloadProgress,
   info,
   loading,
   onDownloadMissing,
@@ -326,6 +329,7 @@ function OcrModelManager({
 }: {
   downloading: boolean;
   downloadEnabled: boolean;
+  downloadProgress: Map<string, OcrDownloadProgress>;
   info: OcrModelInfo | null;
   loading: boolean;
   onDownloadMissing: () => void;
@@ -386,6 +390,30 @@ function OcrModelManager({
         <Alert variant="destructive">
           <AlertDescription>{info.error}</AlertDescription>
         </Alert>
+      )}
+
+      {downloading && downloadProgress.size > 0 && (
+        <div className="settings-download-progress">
+          {Array.from(downloadProgress.values()).map((p) => {
+            const pct = p.total ? Math.round((p.downloaded / p.total) * 100) : null;
+            return (
+              <div key={p.fileName} className="settings-download-item">
+                <div className="settings-download-item-header">
+                  <span className="settings-download-filename">{p.fileName}</span>
+                  <span className="settings-download-stat">
+                    {pct !== null ? `${pct}%` : `${(p.downloaded / 1024 / 1024).toFixed(1)} MB`}
+                  </span>
+                </div>
+                <div className="settings-download-bar">
+                  <div
+                    className={`settings-download-fill${pct === null ? " settings-download-fill-indeterminate" : ""}`}
+                    style={pct !== null ? { width: `${pct}%` } : undefined}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       <Field className="settings-text-row">
@@ -561,6 +589,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
   const [ocrModelInfo, setOcrModelInfo] = useState<OcrModelInfo | null>(null);
   const [ocrModelLoading, setOcrModelLoading] = useState(false);
   const [ocrModelDownloading, setOcrModelDownloading] = useState(false);
+  const [ocrDownloadProgress, setOcrDownloadProgress] = useState<Map<string, OcrDownloadProgress>>(new Map());
   const [runningApps, setRunningApps] = useState<string[]>([]);
   const [showPicker, setShowPicker] = useState(false);
   const [loadingApps, setLoadingApps] = useState(false);
@@ -650,13 +679,23 @@ export function Settings({ onClose }: { onClose: () => void }) {
     void (async () => {
       if (nextConfig.ocrModelDownloadEnabled) {
         setOcrModelDownloading(true);
+        setOcrDownloadProgress(new Map());
+        const unlisten = await listenOcrDownloadProgress((p) => {
+          setOcrDownloadProgress((prev) => {
+            const next = new Map(prev);
+            next.set(p.fileName, p);
+            return next;
+          });
+        });
         try {
           await ensureOcrModelProfile(profile);
           await resetOcrEngine();
         } catch (err) {
           console.error("Failed to ensure OCR model profile:", err);
         } finally {
+          unlisten();
           setOcrModelDownloading(false);
+          setOcrDownloadProgress(new Map());
         }
       }
       await loadOcrModelState(profile);
@@ -665,6 +704,14 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
   const handleDownloadMissingOcrModels = async () => {
     setOcrModelDownloading(true);
+    setOcrDownloadProgress(new Map());
+    const unlisten = await listenOcrDownloadProgress((p) => {
+      setOcrDownloadProgress((prev) => {
+        const next = new Map(prev);
+        next.set(p.fileName, p);
+        return next;
+      });
+    });
     try {
       await ensureOcrModelProfile(local.ocrModelProfile);
       await resetOcrEngine();
@@ -681,7 +728,9 @@ export function Settings({ onClose }: { onClose: () => void }) {
         error: "下载 OCR 模型失败，请检查网络或稍后重试。",
       }));
     } finally {
+      unlisten();
       setOcrModelDownloading(false);
+      setOcrDownloadProgress(new Map());
     }
   };
 
@@ -1081,6 +1130,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
                 <OcrModelManager
                   downloading={ocrModelDownloading}
                   downloadEnabled={local.ocrModelDownloadEnabled}
+                  downloadProgress={ocrDownloadProgress}
                   info={ocrModelInfo}
                   loading={ocrModelLoading}
                   onDownloadMissing={() => void handleDownloadMissingOcrModels()}

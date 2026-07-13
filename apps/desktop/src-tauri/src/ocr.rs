@@ -1,6 +1,6 @@
 use std::{
     fs,
-    io::Write,
+    io::{Read, Write},
     path::{Path, PathBuf},
     sync::Mutex,
 };
@@ -8,7 +8,7 @@ use std::{
 use ocr_rs::{OcrEngine, OcrEngineConfig};
 use reqwest::blocking::Client;
 use serde::Serialize;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -48,6 +48,15 @@ pub struct OcrModelInfo {
     pub source_label: Option<String>,
     pub assets: Vec<OcrModelAssetInfo>,
     pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OcrDownloadProgress {
+    pub file_name: String,
+    pub downloaded: u64,
+    pub total: Option<u64>,
+    pub done: bool,
 }
 
 struct CachedOcrEngine {
@@ -322,6 +331,7 @@ fn preferred_models_dir_with_source(app: &AppHandle) -> Result<(PathBuf, String)
 }
 
 fn download_missing_asset(
+    app: &AppHandle,
     target_dir: &Path,
     model_dirs: &[PathBuf],
     exact: &[&str],
@@ -334,7 +344,7 @@ fn download_missing_asset(
 
     let mut errors = Vec::new();
     for file_name in downloads {
-        match download_model_file(target_dir, file_name) {
+        match download_model_file(app, target_dir, file_name) {
             Ok(()) => return Ok(()),
             Err(error) => errors.push(format!("{file_name}: {error}")),
         }
@@ -347,7 +357,7 @@ fn download_missing_asset(
     ))
 }
 
-fn download_model_file(target_dir: &Path, file_name: &str) -> Result<(), String> {
+fn download_model_file(app: &AppHandle, target_dir: &Path, file_name: &str) -> Result<(), String> {
     let client = Client::builder()
         .build()
         .map_err(|error| format!("Failed to create download client: {}", error))?;
@@ -369,11 +379,33 @@ fn download_model_file(target_dir: &Path, file_name: &str) -> Result<(), String>
                     continue;
                 }
 
+                let total = response.content_length();
                 let mut file = fs::File::create(&temp_path)
                     .map_err(|error| format!("Failed to create temp model file: {}", error))?;
-                response
-                    .copy_to(&mut file)
-                    .map_err(|error| format!("Failed to write model file: {}", error))?;
+
+                let mut downloaded: u64 = 0;
+                let mut buf = [0u8; 65536];
+                loop {
+                    let n = response
+                        .read(&mut buf)
+                        .map_err(|error| format!("Failed to read model file: {}", error))?;
+                    if n == 0 {
+                        break;
+                    }
+                    file.write_all(&buf[..n])
+                        .map_err(|error| format!("Failed to write model file: {}", error))?;
+                    downloaded += n as u64;
+                    let _ = app.emit(
+                        "ocr-model://download-progress",
+                        OcrDownloadProgress {
+                            file_name: file_name.to_string(),
+                            downloaded,
+                            total,
+                            done: false,
+                        },
+                    );
+                }
+
                 file.flush()
                     .map_err(|error| format!("Failed to flush model file: {}", error))?;
                 fs::rename(&temp_path, &target_path).map_err(|error| {
@@ -383,6 +415,15 @@ fn download_model_file(target_dir: &Path, file_name: &str) -> Result<(), String>
                         error
                     )
                 })?;
+                let _ = app.emit(
+                    "ocr-model://download-progress",
+                    OcrDownloadProgress {
+                        file_name: file_name.to_string(),
+                        downloaded,
+                        total: Some(downloaded),
+                        done: true,
+                    },
+                );
                 return Ok(());
             }
             Err(error) => {
@@ -439,9 +480,10 @@ pub fn ensure_model_profile(app: &AppHandle, profile: &str) -> Result<OcrModelIn
     let source_dirs = collect_model_sources(app);
     let model_dirs: Vec<PathBuf> = source_dirs.iter().map(|(path, _)| path.clone()).collect();
 
-    download_missing_asset(&target_dir, &model_dirs, spec.det_exact, spec.det_prefix, spec.download_det)?;
-    download_missing_asset(&target_dir, &model_dirs, spec.rec_exact, spec.rec_prefix, spec.download_rec)?;
+    download_missing_asset(app, &target_dir, &model_dirs, spec.det_exact, spec.det_prefix, spec.download_det)?;
+    download_missing_asset(app, &target_dir, &model_dirs, spec.rec_exact, spec.rec_prefix, spec.download_rec)?;
     download_missing_asset(
+        app,
         &target_dir,
         &model_dirs,
         spec.charset_exact,

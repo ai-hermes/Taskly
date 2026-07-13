@@ -290,6 +290,13 @@ export type OcrModelProfileId =
   | "ppocrv6_small"
   | "ppocrv6_medium";
 
+export interface OcrDownloadProgress {
+  fileName: string;
+  downloaded: number;
+  total?: number;
+  done: boolean;
+}
+
 export interface ExtractTodoOptions {
   knownTitles?: string[];
   screenshotPath?: string;
