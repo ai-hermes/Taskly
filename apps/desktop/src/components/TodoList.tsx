@@ -9,6 +9,7 @@ import {
 import {
   CheckCircleIcon,
   GripVerticalIcon,
+  InfoIcon,
   PencilIcon,
   PlayIcon,
   Trash2Icon,
@@ -310,6 +311,25 @@ function TodoBranch({
           <Badge className="section-count" variant="secondary">
             {ids.length}
           </Badge>
+          {meta.tip && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  className="section-tip-trigger"
+                  role="button"
+                  tabIndex={0}
+                  aria-label="说明"
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
+                >
+                  <InfoIcon />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="section-tip-content">
+                {meta.tip}
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
       </AccordionTrigger>
       <AccordionContent>
@@ -318,9 +338,6 @@ function TodoBranch({
             ref={setNodeRef}
             className={cn("todo-drop-zone", isOver && "is-over")}
           >
-            {meta.tip && (
-              <p className="todo-branch-tip">{meta.tip}</p>
-            )}
             {ids.length === 0 ? (
               <Empty className="empty-hint compact">
                 <EmptyHeader>

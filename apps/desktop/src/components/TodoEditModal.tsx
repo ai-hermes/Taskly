@@ -89,19 +89,21 @@ export function TodoEditModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="modal max-w-lg">
+      <DialogContent className="modal todo-edit-modal">
         <DialogHeader>
           <DialogTitle>编辑待办</DialogTitle>
-          <DialogDescription>调整标题、描述和截止时间。</DialogDescription>
+          <DialogDescription className="sr-only">
+            编辑该待办的标题、描述与截止时间
+          </DialogDescription>
         </DialogHeader>
 
-        <FieldGroup>
+        <FieldGroup className="todo-edit-form">
           <Field data-invalid={!title.trim()}>
             <FieldLabel htmlFor="todo-title">标题</FieldLabel>
             <Input
               id="todo-title"
               value={title}
-              placeholder="待办标题"
+              placeholder="给这个待办起个名字"
               autoFocus
               aria-invalid={!title.trim()}
               onChange={(event) => setTitle(event.target.value)}
@@ -115,100 +117,88 @@ export function TodoEditModal({
               }}
             />
             {!title.trim() && (
-              <FieldDescription>标题不能为空。</FieldDescription>
+              <FieldDescription>标题不能为空</FieldDescription>
             )}
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="todo-description">描述（可选）</FieldLabel>
+            <FieldLabel htmlFor="todo-description">描述</FieldLabel>
             <Textarea
               id="todo-description"
               value={description}
-              placeholder="描述（可选）"
+              placeholder="补充说明（选填）"
               rows={3}
               onChange={(event) => setDescription(event.target.value)}
             />
           </Field>
 
           <Field>
-            <FieldLabel>截止日期（可选）</FieldLabel>
-            <FieldGroup className="flex-row gap-3">
-              <Field>
-                <FieldLabel
-                  htmlFor="due-date"
-                  className="text-muted-foreground"
+            <FieldLabel>截止时间</FieldLabel>
+            <div className="todo-due-row">
+              <Popover open={dueDateOpen} onOpenChange={setDueDateOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    id="due-date"
+                    variant="outline"
+                    className="todo-due-date justify-between font-normal data-[empty=true]:text-muted-foreground"
+                    data-empty={!dueDate}
+                  >
+                    <span className="flex items-center gap-2">
+                      <CalendarIcon data-icon="inline-start" />
+                      {dueDate ? formatDueDate(dueDate) : "选择日期"}
+                    </span>
+                    <ChevronDownIcon data-icon="inline-end" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-auto overflow-hidden p-0"
+                  align="start"
                 >
-                  日期
-                </FieldLabel>
-                <Popover open={dueDateOpen} onOpenChange={setDueDateOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      id="due-date"
-                      variant="outline"
-                      className="w-40 justify-between font-normal data-[empty=true]:text-muted-foreground"
-                      data-empty={!dueDate}
-                    >
-                      <span className="flex items-center gap-2">
-                        <CalendarIcon data-icon="inline-start" />
-                        {dueDate ? formatDueDate(dueDate) : "选择日期"}
-                      </span>
-                      <ChevronDownIcon data-icon="inline-end" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto overflow-hidden p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={dueDate}
-                      captionLayout="dropdown"
-                      defaultMonth={dueDate}
-                      onSelect={(date) => {
-                        if (!date) {
-                          setDueDate(undefined);
-                          return;
-                        }
-                        const base = dueDate ?? new Date();
-                        const merged = new Date(date);
-                        merged.setHours(
-                          base.getHours(),
-                          base.getMinutes(),
-                          base.getSeconds(),
-                          0
-                        );
-                        setDueDate(merged);
-                        setDueDateOpen(false);
-                      }}
-                      autoFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </Field>
-              <Field className="w-32">
-                <FieldLabel
-                  htmlFor="due-time"
-                  className="text-muted-foreground"
-                >
-                  时间
-                </FieldLabel>
-                <Input
-                  type="time"
-                  id="due-time"
-                  step="1"
-                  lang="en-GB"
-                  value={toTimeInputValue(dueDate)}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    if (!value) return;
-                    const [h, m, s] = value.split(":").map(Number);
-                    const base = dueDate ?? new Date();
-                    const merged = new Date(base);
-                    merged.setHours(h || 0, m || 0, s || 0, 0);
-                    setDueDate(merged);
-                  }}
-                  className="appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
-                />
-              </Field>
-            </FieldGroup>
+                  <Calendar
+                    mode="single"
+                    selected={dueDate}
+                    captionLayout="dropdown"
+                    defaultMonth={dueDate}
+                    onSelect={(date) => {
+                      if (!date) {
+                        setDueDate(undefined);
+                        return;
+                      }
+                      const base = dueDate ?? new Date();
+                      const merged = new Date(date);
+                      merged.setHours(
+                        base.getHours(),
+                        base.getMinutes(),
+                        base.getSeconds(),
+                        0
+                      );
+                      setDueDate(merged);
+                      setDueDateOpen(false);
+                    }}
+                    autoFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              <Input
+                type="time"
+                id="due-time"
+                aria-label="截止时间"
+                step="60"
+                lang="en-GB"
+                value={toTimeInputValue(dueDate)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (!value) return;
+                  const [h, m, s] = value.split(":").map(Number);
+                  const base = dueDate ?? new Date();
+                  const merged = new Date(base);
+                  merged.setHours(h || 0, m || 0, s || 0, 0);
+                  setDueDate(merged);
+                }}
+                className="todo-due-time appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+              />
+            </div>
           </Field>
         </FieldGroup>
 

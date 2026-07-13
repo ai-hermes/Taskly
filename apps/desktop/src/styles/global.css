@@ -573,7 +573,7 @@ textarea:focus-visible {
 
 .todo-item {
   display: grid;
-  grid-template-columns: 16px 22px minmax(0, 1fr) auto;
+  grid-template-columns: 16px 22px minmax(0, 1fr);
   align-items: center;
   gap: 6px;
   min-height: 36px;
@@ -582,6 +582,7 @@ textarea:focus-visible {
   border-radius: var(--radius-md);
   transition: background-color 150ms var(--ease-out), border-color 150ms var(--ease-out), transform 150ms var(--ease-out);
   cursor: pointer;
+  position: relative;
 }
 
 .todo-item.active {
@@ -683,16 +684,36 @@ textarea:focus-visible {
 }
 
 .todo-actions {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   gap: 1px;
+  padding-left: 24px;
   opacity: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    transparent 0,
+    var(--surface-wash) 40%
+  );
   transition: opacity 150ms var(--ease-out);
 }
 
 .todo-item:hover .todo-actions,
 .todo-item:focus-within .todo-actions {
   opacity: 1;
+  pointer-events: auto;
+}
+
+.todo-item.active .todo-actions {
+  background: linear-gradient(
+    to right,
+    transparent 0,
+    var(--surface-card) 40%
+  );
 }
 
 .todo-edit,
@@ -1717,10 +1738,25 @@ textarea:focus-visible {
   background: var(--bg-secondary, var(--bg-primary));
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 24px;
-  max-width: 380px;
-  width: 100%;
+  padding: 16px;
+  width: min(420px, calc(100vw - 48px));
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 80px);
+  overflow: hidden auto;
   text-align: center;
+}
+
+/* Grid children must be allowed to shrink below their min-content, otherwise a
+   long unbreakable token (e.g. the debug exe path) widens the whole grid column
+   and the content overflows/clips past the card edge. */
+.permission-card > * {
+  min-width: 0;
+}
+
+/* Let the long process/exe path in the debug alert wrap instead of forcing width. */
+.permission-card [data-slot="alert-description"] {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .permission-icon {
@@ -1833,6 +1869,62 @@ textarea:focus-visible {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 4px;
+}
+
+/* ---- Edit-todo modal: compact, refined ---- */
+.todo-edit-modal {
+  width: min(420px, calc(100vw - 48px));
+  gap: 14px;
+}
+
+.todo-edit-modal [data-slot="dialog-header"] {
+  gap: 1px;
+}
+
+.todo-edit-modal [data-slot="dialog-title"] {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.todo-edit-form {
+  gap: 14px;
+}
+
+.todo-edit-form [data-slot="field"] {
+  gap: 6px;
+}
+
+.todo-edit-form [data-slot="field-label"] {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+}
+
+.todo-due-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.todo-due-row .todo-due-date {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+}
+
+.todo-due-row .todo-due-time {
+  width: 116px;
+  flex: none;
+  height: 32px;
+}
+
+/* Soften focus: no harsh near-black ring inside this modal */
+.todo-edit-form input:focus-visible,
+.todo-edit-form textarea:focus-visible,
+.todo-due-row .todo-due-date:focus-visible {
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 /* ---- Workspace prepare modal ---- */
@@ -2235,17 +2327,27 @@ textarea:focus-visible {
 }
 
 .chat-source-dialog {
-  width: min(1280px, calc(100vw - 32px));
-  max-width: min(1280px, calc(100vw - 32px));
-  max-height: calc(100vh - 32px);
+  width: min(1040px, calc(100vw - 96px));
+  max-width: min(1040px, calc(100vw - 96px));
+  max-height: calc(100vh - 120px);
   grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 10px;
-  padding: 14px;
+  gap: 8px;
+  padding: 12px;
 }
 
 .chat-source-dialog-header {
-  gap: 2px;
-  padding-right: 44px;
+  gap: 1px;
+  padding-right: 40px;
+}
+
+.chat-source-dialog [data-slot="dialog-title"] {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.chat-source-dialog [data-slot="dialog-description"] {
+  font-size: 12px;
+  color: var(--text-tertiary);
 }
 
 .chat-source-dialog-body {
@@ -2253,7 +2355,7 @@ textarea:focus-visible {
   overflow: auto;
   overscroll-behavior: contain;
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background: var(--surface-sunken);
 }
 
@@ -3345,7 +3447,7 @@ h3 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   flex: none;
-  align-items: start;
+  align-items: center;
   gap: 12px;
   height: 48px;
   min-height: 48px;
@@ -3359,12 +3461,11 @@ h3 {
 .app-topbar-left {
   position: relative;
   z-index: 1;
+  top: -7px;
   display: inline-flex;
   align-items: center;
-  align-self: start;
   gap: 6px;
   height: 32px;
-  margin-top: 8px;
   -webkit-app-region: no-drag;
 }
 
@@ -3372,13 +3473,11 @@ h3 {
   position: relative;
   z-index: 1;
   display: inline-flex;
-  height: 26px;
+  height: 32px;
   flex: none;
   align-items: center;
-  align-self: start;
   justify-self: end;
   gap: 10px;
-  margin-top: 11px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -3805,6 +3904,35 @@ h3 {
   gap: 6px;
 }
 
+.section-tip-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  color: var(--text-quaternary);
+  cursor: help;
+  transition: color 140ms ease, background 140ms ease;
+}
+
+.section-tip-trigger:hover,
+.section-tip-trigger:focus-visible {
+  color: var(--text-secondary);
+  background: var(--surface-card);
+  outline: none;
+}
+
+.section-tip-trigger svg {
+  width: 13px;
+  height: 13px;
+}
+
+.section-tip-content {
+  max-width: 240px;
+  line-height: 1.5;
+}
+
 /* Child container: indent + vertical guide line dropping from the node. */
 .todo-tree-branch [data-slot="accordion-content"] > div {
   position: relative;
@@ -3863,7 +3991,6 @@ h3 {
 .todo-tree-branch .todo-item.active {
   border-color: transparent;
   background: var(--surface-card);
-  box-shadow: inset 2px 0 0 var(--text-primary);
 }
 
 .todo-tree-branch .todo-item.done {
@@ -4110,15 +4237,50 @@ h3 {
 
 .chat-empty-state {
   flex: 0 1 auto;
-  width: min(420px, calc(100% - 48px));
-  max-width: 420px;
-  min-height: 168px;
-  padding: 18px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-card);
+  width: min(340px, calc(100% - 48px));
+  max-width: 340px;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  gap: 0;
 }
+
+.chat-empty-state [data-slot="empty-header"] {
+  gap: 0;
+  max-width: none;
+}
+
+.chat-empty-state [data-slot="empty-icon"] {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  border-radius: 14px;
+  background: var(--surface-card);
+  color: var(--text-secondary);
+}
+
+.chat-empty-state [data-slot="empty-icon"] svg {
+  width: 22px;
+  height: 22px;
+  color: var(--text-secondary);
+}
+
+.chat-empty-state [data-slot="empty-title"] {
+  margin-bottom: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.chat-empty-state [data-slot="empty-description"] {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-tertiary);
+}
+
 
 [data-slot="message-header"] {
   padding: 0;
