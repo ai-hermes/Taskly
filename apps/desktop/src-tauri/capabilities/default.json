@@ -5,6 +5,10 @@
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
+    "core:window:allow-set-size",
+    "core:window:allow-set-min-size",
+    "core:window:allow-inner-size",
+    "core:window:allow-scale-factor",
     "store:allow-get",
     "store:allow-set",
     "store:allow-save",

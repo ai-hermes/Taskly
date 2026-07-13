@@ -1682,13 +1682,48 @@ textarea:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  .todo-item,
+  .todo-drag-handle,
+  .todo-drop-zone,
+  .composer-btn,
+  .chat-tool-head,
+  .chat-thinking-head,
+  .sidebar-resize-handle::after,
+  .chat-source-zoom-hint {
+    transition-property: background-color, border-color, color, opacity,
+      box-shadow !important;
+    transition-duration: var(--dur-fast) !important;
+    transition-timing-function: var(--ease-out) !important;
+  }
+
+  .skeleton-row,
+  .status-dot.active::after,
+  .spin,
+  .settings-download-fill-indeterminate {
+    animation: none !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .app-topbar,
+  .app-chat,
+  .app-sidebar {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: var(--surface) !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .app-topbar,
+  .app-chat,
+  .app-sidebar {
+    border-color: var(--border-strong);
+    box-shadow: none;
   }
 }
 
@@ -3430,7 +3465,21 @@ body {
 .app {
   height: 100vh;
   height: 100dvh;
-  background: var(--surface-wash);
+  background:
+    radial-gradient(1200px 420px at 50% -220px, color-mix(in srgb, var(--surface-card) 70%, transparent), transparent),
+    var(--surface-wash);
+}
+
+.app.todo-only .app-topbar {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app.todo-only .app-topbar-history {
+  display: none;
+}
+
+.app.todo-only .app-topbar-left {
+  top: -3px;
 }
 
 /* Cal.com display voice: geometric, weight-600, negative tracking on headlines. */
@@ -3452,10 +3501,12 @@ h3 {
   height: 48px;
   min-height: 48px;
   padding: 0 18px 0 86px;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  box-shadow: inset 0 -1px 0 var(--border);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  box-shadow:
+    inset 0 -1px 0 color-mix(in srgb, var(--border) 72%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 58%, transparent);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
 }
 
 .app-topbar-left {
@@ -3491,6 +3542,10 @@ h3 {
   padding: 0;
   border-radius: var(--radius-md);
   color: var(--text-tertiary);
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 
 .app-topbar [data-slot="button"]:not(:disabled):hover {
@@ -3541,12 +3596,53 @@ h3 {
   padding: 8px;
 }
 
+.app-body.chat-collapsed .app-sidebar {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  max-height: none;
+}
+
+.app-body.chat-collapsed .sidebar-resize-handle {
+  display: none;
+}
+
+/* In the narrow todo-only view, let titles wrap so todos read fully. */
+.app-body.chat-collapsed .todo-title {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.app-body.chat-collapsed .todo-item {
+  align-items: start;
+}
+
+.app-body.chat-collapsed .todo-check {
+  margin-top: 1px;
+}
+
 .app-sidebar,
 .app-chat {
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: var(--surface);
-  box-shadow: var(--shadow-card);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 50%, transparent),
+    var(--shadow-card);
+}
+
+.app-chat.collapsed {
+  display: none;
+}
+
+.app-chat {
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
 }
 
 .app-sidebar {
@@ -3554,8 +3650,8 @@ h3 {
   position: relative;
   min-width: 260px;
   max-width: min(520px, 48vw);
-  transition: width 160ms var(--ease-out), min-width 160ms var(--ease-out),
-    max-width 160ms var(--ease-out);
+  transition: none;
+  background: color-mix(in srgb, var(--surface-card) 90%, transparent);
 }
 
 .app-sidebar.resizing {
@@ -3594,8 +3690,8 @@ h3 {
   border-radius: 999px;
   background: color-mix(in srgb, var(--text-quaternary) 48%, transparent);
   opacity: 0;
-  transition: opacity 140ms ease, background 140ms ease, box-shadow 140ms ease,
-    width 140ms ease;
+  transition: opacity 140ms var(--ease-out), background 140ms var(--ease-out),
+    box-shadow 140ms var(--ease-out), width 140ms var(--ease-out);
 }
 
 .sidebar-resize-handle:hover::after,
@@ -3743,8 +3839,8 @@ h3 {
   border-radius: var(--radius-md);
   background: var(--surface);
   box-shadow: none;
-  transition: background 140ms ease, border-color 140ms ease,
-    box-shadow 140ms ease, transform 140ms ease;
+  transition: background 140ms var(--ease-out), border-color 140ms var(--ease-out),
+    box-shadow 140ms var(--ease-out), transform 140ms var(--ease-out);
 }
 
 .todo-item:hover {
