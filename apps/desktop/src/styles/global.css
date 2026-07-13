@@ -4557,7 +4557,7 @@ h3 {
 .settings-disclosure {
   border: 1px solid var(--border) !important;
   border-radius: 14px;
-  background: var(--surface-card);
+  background: var(--surface);
   box-shadow: none;
   overflow: hidden;
 }
@@ -4565,14 +4565,18 @@ h3 {
 .settings-disclosure-trigger {
   align-items: center;
   gap: 12px;
-  padding: 15px 18px;
+  padding: 16px 18px;
   color: var(--text-primary);
   text-decoration: none;
 }
 
 .settings-disclosure-trigger:hover {
   text-decoration: none;
-  background: color-mix(in srgb, var(--surface) 52%, var(--surface-card));
+  background: var(--surface-wash);
+}
+
+.settings-disclosure [data-state="open"] .settings-disclosure-trigger {
+  border-bottom: 1px solid var(--border);
 }
 
 .settings-disclosure-copy {
@@ -4582,18 +4586,19 @@ h3 {
 
 .settings-disclosure-copy h3 {
   margin: 0;
+  font-family: var(--font-display);
   color: var(--text-primary);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
-  line-height: 22px;
-  letter-spacing: -0.15px;
+  line-height: 21px;
+  letter-spacing: var(--display-tracking);
 }
 
 .settings-disclosure-copy p {
   margin: 0;
   color: var(--text-tertiary);
   font-size: 13px;
-  line-height: 18px;
+  line-height: 19px;
 }
 
 .settings-disclosure [data-slot="accordion-trigger-icon"] {
@@ -4735,7 +4740,7 @@ h3 {
 
 .settings-section-emphasis {
   border-color: var(--border);
-  background: var(--surface-card);
+  background: var(--surface);
 }
 
 .settings-section-heading {
