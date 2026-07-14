@@ -10,7 +10,7 @@
  * Usage: node scripts/build-pi-sidecar.mjs [--version <npm-version>]
  * Requires: bun >= 1.1, npm.
  */
-import { execFileSync, execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, mkdirSync, existsSync, cpSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -51,15 +51,9 @@ function hostTriple() {
 
 // On Windows, npm is a `.cmd` shim. Since Node 18.20/20.12/22 (CVE-2024-27980),
 // execFile/spawn refuse to run `.cmd`/`.bat` files without `shell: true`,
-// throwing EINVAL. Run npm through the shell on Windows to avoid this.
+// throwing EINVAL. Passing shell:true also lets Node escape arguments safely.
 function runNpm(args, opts = {}) {
-  if (isWindows) {
-    // With shell:true, quote args to survive paths containing spaces.
-    const quoted = args.map((a) => `"${a}"`).join(" ");
-    execSync(`npm ${quoted}`, opts);
-  } else {
-    execFileSync("npm", args, opts);
-  }
+  execFileSync("npm", args, isWindows ? { ...opts, shell: true } : opts);
 }
 
 const versionIdx = process.argv.indexOf("--version");
