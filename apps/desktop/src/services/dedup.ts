@@ -55,7 +55,10 @@ function normalizeDueDay(dueDate?: string): string {
   if (!dueDate) return "";
   const d = new Date(dueDate);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 /** Small, stable non-cryptographic hash (FNV-1a) rendered as hex. */
