@@ -137,6 +137,12 @@ async fn get_active_window() -> Result<String, String> {
 }
 
 #[tauri::command]
+async fn activate_app(app_name: String) -> Result<(), String> {
+    window_monitor::activate_app(&app_name)
+        .map_err(|e| format!("Failed to activate app: {}", e))
+}
+
+#[tauri::command]
 async fn is_whitelisted_app(whitelist: Option<Vec<String>>) -> Result<bool, String> {
     let whitelist = whitelist.unwrap_or_default();
     let app_name = window_monitor::get_frontmost_app()
@@ -225,6 +231,7 @@ pub fn run() {
             persist_screenshot,
             cleanup_screenshots,
             get_active_window,
+            activate_app,
             is_whitelisted_app,
             list_running_apps,
             recognize_image,

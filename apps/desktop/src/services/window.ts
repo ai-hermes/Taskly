@@ -11,3 +11,8 @@ export async function listRunningApps(): Promise<string[]> {
 export async function getActiveWindow(): Promise<string> {
   return invoke<string>("get_active_window");
 }
+
+/** Bring the given app to the foreground (macOS). Best-effort. */
+export async function activateApp(appName: string): Promise<void> {
+  await invoke("activate_app", { appName });
+}
