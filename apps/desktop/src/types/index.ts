@@ -1,40 +1,33 @@
-export interface TodoItem {
-  id: string;
-  title: string;
-  description?: string;
-  done: boolean;
-  source: string;
-  sourceText?: string;
-  priority: number;
-  dueDate?: string;
-  reviewStatus?: TodoReviewStatus;
-  todoKind?: TodoKind;
-  sourceEvidence?: TodoSourceEvidence;
-  createdAt: string;
-  updatedAt: string;
-  /** Normalized-title (+ due-day) hash used for deduplication. */
-  fingerprint?: string;
+import type {
+  TodoItem as CoreTodoItem,
+  TodoReviewStatus,
+  TodoKind,
+  OcrRegion,
+  TodoSourceEvidence,
+  Tombstone,
+  ExtractTodoOptions,
+  LLMProvider,
+} from "@taskly/core";
+
+export type {
+  TodoReviewStatus,
+  TodoKind,
+  OcrRegion,
+  TodoSourceEvidence,
+  Tombstone,
+  ExtractTodoOptions,
+  LLMProvider,
+};
+
+/**
+ * Desktop todo model: the shared core record plus UI/agent-execution fields
+ * that only the desktop app cares about.
+ */
+export interface TodoItem extends CoreTodoItem {
   /** Per-todo workspace context for agent execution. */
   workspace?: TodoWorkspaceContext;
   /** Latest agent execution record. */
   execution?: TodoExecutionRecord;
-  /** How the todo was completed. */
-  completedBy?: "manual" | "agent";
-}
-
-export type TodoReviewStatus = "confirmed" | "pending_confirmation";
-
-export type TodoKind = "actionable" | "notification";
-
-export interface OcrRegion {
-  text: string;
-  confidence: number;
-  box: number[][];
-}
-
-export interface TodoSourceEvidence {
-  screenshotPath?: string;
-  matchedRegions: OcrRegion[];
 }
 
 export type TodoExecutionStatus =
@@ -247,14 +240,6 @@ export interface ExecPhaseEvent {
   ts: number;
 }
 
-/** Record of a user-deleted todo, kept for a TTL to block re-detection. */
-export interface Tombstone {
-  fingerprint: string;
-  normalizedTitle: string;
-  /** Epoch millis when the todo was deleted. */
-  deletedAt: number;
-}
-
 export interface OcrResult {
   success: boolean;
   text: string;
@@ -295,17 +280,6 @@ export interface OcrDownloadProgress {
   downloaded: number;
   total?: number;
   done: boolean;
-}
-
-export interface ExtractTodoOptions {
-  knownTitles?: string[];
-  screenshotPath?: string;
-  ocrDetails?: OcrRegion[];
-}
-
-export interface LLMProvider {
-  name: string;
-  extractTodos(ocrText: string, options?: ExtractTodoOptions): Promise<TodoItem[]>;
 }
 
 /** Relative capture fence; all fields are fractions [0,1] of the screenshot. */
