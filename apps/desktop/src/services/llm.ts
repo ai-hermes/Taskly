@@ -45,6 +45,13 @@ export class OpenAIProvider implements LLMProvider {
       }),
     });
 
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        `LLM API error ${response.status} ${response.statusText}: ${body.slice(0, 200)}`
+      );
+    }
+
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
 
@@ -80,7 +87,10 @@ export class OpenAIProvider implements LLMProvider {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }));
-    } catch {
+    } catch (e) {
+      console.error("[LLM] failed to parse todo extraction response:", e, {
+        contentPreview: String(content).slice(0, 200),
+      });
       return [];
     }
 
