@@ -371,4 +371,17 @@ describe("fingerprint timezone regression", () => {
       fingerprint({ title: "提交周报" })
     );
   });
+
+  it("date-only string (YYYY-MM-DD) is returned as-is, not parsed through new Date()", () => {
+    // new Date("2026-07-15") is UTC midnight; for UTC-west users getDate()
+    // would return the 14th. The fast-path must bypass that entirely.
+    expect(fingerprint({ title: "任务", dueDate: "2026-07-15" })).toBe(
+      fingerprint({ title: "任务", dueDate: "2026-07-15" })
+    );
+    // Ensure a full-datetime on the same local day produces the same bucket.
+    const sameDay = new Date(2026, 6, 15, 10).toISOString(); // local 2026-07-15
+    expect(fingerprint({ title: "任务", dueDate: "2026-07-15" })).toBe(
+      fingerprint({ title: "任务", dueDate: sameDay })
+    );
+  });
 });

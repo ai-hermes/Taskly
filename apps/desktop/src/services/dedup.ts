@@ -53,6 +53,9 @@ export function normalizeTitle(input: string): string {
 /** Normalize an ISO date-ish value down to a YYYY-MM-DD day bucket, if parseable. */
 function normalizeDueDay(dueDate?: string): string {
   if (!dueDate) return "";
+  // Date-only strings (YYYY-MM-DD) are already the intended calendar day —
+  // bypass new Date() entirely so UTC parsing can't shift them west of UTC.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return dueDate;
   const d = new Date(dueDate);
   if (Number.isNaN(d.getTime())) return "";
   const y = d.getFullYear();
