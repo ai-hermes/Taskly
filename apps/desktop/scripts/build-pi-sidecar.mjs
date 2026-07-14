@@ -20,6 +20,12 @@ const PACKAGE = "@mariozechner/pi-coding-agent";
 const desktopDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = join(desktopDir, "src-tauri", "binaries");
 
+// On Windows, npm ships as `npm.cmd` and bun as `bun.exe`. Node's execFileSync
+// does not perform PATHEXT resolution, so the bare names fail with ENOENT.
+const isWindows = process.platform === "win32";
+const NPM = isWindows ? "npm.cmd" : "npm";
+const BUN = isWindows ? "bun.exe" : "bun";
+
 function hostTriple() {
   try {
     const out = execFileSync("rustc", ["-vV"], { encoding: "utf8" });
@@ -57,7 +63,7 @@ const workDir = mkdtempSync(join(tmpdir(), "pi-sidecar-"));
 try {
   console.log(`[sidecar] installing ${spec} ...`);
   execFileSync(
-    "npm",
+    NPM,
     [
       "install",
       "--no-audit",
@@ -87,7 +93,7 @@ try {
   mkdirSync(outDir, { recursive: true });
   console.log(`[sidecar] compiling to ${outFile} ...`);
   execFileSync(
-    "bun",
+    BUN,
     ["build", "--compile", entry, "--outfile", outFile],
     { stdio: "inherit", cwd: workDir }
   );
