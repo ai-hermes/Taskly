@@ -691,6 +691,19 @@ async fn run_validations(
 ) -> Vec<ValidationResult> {
     let mut results = Vec::new();
     for cmd in commands {
+        if let Err(msg) = validate_command_syntax(cmd) {
+            logger.write("system", &msg);
+            emit_log(app, run_id, todo_id, "system", &msg);
+            results.push(ValidationResult {
+                command: cmd.clone(),
+                exit_code: -1,
+                ok: false,
+                stdout_tail: String::new(),
+                stderr_tail: msg,
+                duration_ms: 0,
+            });
+            break;
+        }
         emit_phase(app, run_id, todo_id, "validating", Some(cmd));
         let line = format!("$ {}", cmd);
         logger.write("system", &line);
@@ -1529,6 +1542,26 @@ fn sanitize_validation_commands(commands: &[String]) -> Vec<String> {
         .collect()
 }
 
+/// Reject validation commands containing shell control operators or
+/// substitution syntax. Validation commands are single commands, not scripts;
+/// anything needing `&&`, `;`, `|`, backticks, `$(...)`, or redirection should
+/// be a script file in the repo invoked as one command.
+fn validate_command_syntax(cmd: &str) -> Result<(), String> {
+    const FORBIDDEN: [&str; 9] = ["&&", "||", ";", "|", "`", "$(", ">", "<", "&"];
+    for pat in FORBIDDEN {
+        if cmd.contains(pat) {
+            return Err(format!(
+                "校验命令包含不允许的 shell 操作符 {:?}：{}。如需组合命令，请写成脚本文件后调用。",
+                pat, cmd
+            ));
+        }
+    }
+    if cmd.contains('\n') || cmd.contains('\r') {
+        return Err(format!("校验命令不能包含换行: {}", cmd));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1581,6 +1614,25 @@ mod tests {
             out,
             vec!["pnpm test".to_string(), "cargo build".to_string()]
         );
+    }
+
+    #[test]
+    fn validate_command_syntax_accepts_valid_commands() {
+        assert!(validate_command_syntax("pnpm test").is_ok());
+        assert!(validate_command_syntax("cargo build --release").is_ok());
+        assert!(validate_command_syntax("./scripts/check.sh").is_ok());
+        assert!(validate_command_syntax("python -m pytest tests/").is_ok());
+    }
+
+    #[test]
+    fn validate_command_syntax_rejects_control_operators() {
+        assert!(validate_command_syntax("pnpm test && echo done").is_err());
+        assert!(validate_command_syntax("echo $(whoami)").is_err());
+        assert!(validate_command_syntax("cat foo | grep bar").is_err());
+        assert!(validate_command_syntax("pnpm test; ls").is_err());
+        assert!(validate_command_syntax("echo hi > out.txt").is_err());
+        assert!(validate_command_syntax("echo `date`").is_err());
+        assert!(validate_command_syntax("pnpm test\nls").is_err());
     }
 
     #[test]

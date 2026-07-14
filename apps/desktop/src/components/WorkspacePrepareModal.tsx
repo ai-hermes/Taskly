@@ -175,7 +175,8 @@ export function WorkspacePrepareModal({
               onChange={(event) => setCommandsText(event.target.value)}
             />
             <FieldDescription>
-              每行一条，全部通过才算完成。
+              每行一条命令，将在工作目录中直接执行；不支持 <code>&&</code>、<code>;</code>、<code>|</code>、重定向等
+              shell 操作符 —— 组合逻辑请写入脚本文件后调用。
             </FieldDescription>
           </Field>
         </FieldGroup>
