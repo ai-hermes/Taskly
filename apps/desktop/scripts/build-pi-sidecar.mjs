@@ -20,10 +20,10 @@ const PACKAGE = "@mariozechner/pi-coding-agent";
 const desktopDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = join(desktopDir, "src-tauri", "binaries");
 
-// On Windows, npm ships as `npm.cmd` and bun as `bun.exe`. Node's execFileSync
-// does not perform PATHEXT resolution, so the bare names fail with ENOENT.
+// On Windows, bun ships as `bun.exe`. Node's execFileSync does not perform
+// PATHEXT resolution, so the bare name fails with ENOENT. (npm is a `.cmd`
+// shim and is handled separately via runNpm below.)
 const isWindows = process.platform === "win32";
-const NPM = isWindows ? "npm.cmd" : "npm";
 const BUN = isWindows ? "bun.exe" : "bun";
 
 function hostTriple() {
@@ -49,6 +49,13 @@ function hostTriple() {
   }
 }
 
+// On Windows, npm is a `.cmd` shim. Since Node 18.20/20.12/22 (CVE-2024-27980),
+// execFile/spawn refuse to run `.cmd`/`.bat` files without `shell: true`,
+// throwing EINVAL. Passing shell:true also lets Node escape arguments safely.
+function runNpm(args, opts = {}) {
+  execFileSync("npm", args, isWindows ? { ...opts, shell: true } : opts);
+}
+
 const versionIdx = process.argv.indexOf("--version");
 const spec =
   versionIdx > -1 && process.argv[versionIdx + 1]
@@ -62,8 +69,7 @@ const outFile = join(outDir, `pi-coding-agent-${triple}${ext}`);
 const workDir = mkdtempSync(join(tmpdir(), "pi-sidecar-"));
 try {
   console.log(`[sidecar] installing ${spec} ...`);
-  execFileSync(
-    NPM,
+  runNpm(
     [
       "install",
       "--no-audit",
