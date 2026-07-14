@@ -43,3 +43,11 @@ apps/desktop/src-tauri/binaries/
 
 # OCR models (downloaded at runtime)
 packages/ocr-engine/models/
+
+# Built package artifacts
+packages/core/dist/
+packages/cli/dist/
+# Bundled skill copy (generated from skills/taskly at build time)
+packages/cli/skill/
+# Taskly OCR sidecar build output
+apps/ocr-sidecar/target/

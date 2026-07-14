@@ -1,0 +1,31 @@
+{
+  "name": "@taskly/cli",
+  "version": "0.1.0",
+  "description": "Taskly CLI — capture, manage and remind todos from chat text; designed to pair with codex.",
+  "type": "module",
+  "bin": {
+    "taskly": "./dist/index.js"
+  },
+  "files": ["dist", "skill", "README.md"],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "prebuild": "node scripts/bundle-skill.mjs",
+    "build": "tsc -p tsconfig.json && node -e \"import('node:fs').then(fs=>fs.chmodSync('dist/index.js',0o755))\"",
+    "dev": "tsc -p tsconfig.json --watch",
+    "clean": "rm -rf dist skill",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@taskly/core": "workspace:*",
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
