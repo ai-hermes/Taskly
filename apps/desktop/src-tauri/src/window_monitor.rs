@@ -74,7 +74,11 @@ pub fn activate_app(app_name: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        eprintln!("[window] failed to activate app {:?}: {}", name, stderr.trim());
+        eprintln!(
+            "[window] failed to activate app {:?}: {}",
+            name,
+            stderr.trim()
+        );
         return Err(format!("Failed to activate app: {}", stderr).into());
     }
 

@@ -138,8 +138,7 @@ async fn get_active_window() -> Result<String, String> {
 
 #[tauri::command]
 async fn activate_app(app_name: String) -> Result<(), String> {
-    window_monitor::activate_app(&app_name)
-        .map_err(|e| format!("Failed to activate app: {}", e))
+    window_monitor::activate_app(&app_name).map_err(|e| format!("Failed to activate app: {}", e))
 }
 
 #[tauri::command]
