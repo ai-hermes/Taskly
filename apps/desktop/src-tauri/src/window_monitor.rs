@@ -54,6 +54,46 @@ pub fn list_running_apps() -> Result<Vec<String>, Box<dyn std::error::Error>> {
     Ok(apps)
 }
 
+/// Bring the given application to the foreground on macOS.
+///
+/// Uses System Events to set the matching application *process* frontmost, which
+/// works with the process names surfaced by [`list_running_apps`] /
+/// [`get_frontmost_app`] (e.g. "WeChat", "微信"). This lets the capture-fence
+/// wizard pull the target app forward automatically before taking a screenshot.
+pub fn activate_app(app_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let name = app_name.trim();
+    if name.is_empty() {
+        return Err("empty app name".into());
+    }
+    // Pass the app name as an AppleScript argument (via `argv`) instead of
+    // interpolating it into the script source. This avoids any escaping or
+    // AppleScript-injection concerns around the app name.
+    let output = Command::new("osascript")
+        .args([
+            "-e",
+            "on run argv",
+            "-e",
+            "tell application \"System Events\" to set frontmost of (first application process whose name is item 1 of argv) to true",
+            "-e",
+            "end run",
+            name,
+        ])
+        .output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!(
+            "[window] failed to activate app {:?}: {}",
+            name,
+            stderr.trim()
+        );
+        return Err(format!("Failed to activate app: {}", stderr).into());
+    }
+
+    eprintln!("[window] activated app = {:?}", name);
+    Ok(())
+}
+
 /// Check if the given application name matches the provided whitelist.
 ///
 /// When `whitelist` is empty (e.g. no user configuration was passed), falls

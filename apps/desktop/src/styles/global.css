@@ -909,16 +909,6 @@ textarea:focus-visible {
   white-space: pre-wrap;
 }
 
-.settings-panel {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface-subtle);
-  color: var(--text-primary);
-}
-
 .settings-header {
   position: sticky;
   top: 0;
@@ -1332,22 +1322,39 @@ textarea:focus-visible {
 .fence-wizard {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  width: min(720px, 100%);
+  gap: 10px;
+  width: min(860px, 94vw);
+  max-width: min(860px, 94vw);
   max-height: calc(100vh - 48px);
   overflow: auto;
-  padding: 18px 20px 20px;
+  padding: 16px 20px 18px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface-raised);
   box-shadow: var(--shadow-popover);
 }
 
-.fence-wizard-header {
+/* Compact, left-aligned header (override shadcn centered defaults). */
+.fence-wizard .fence-wizard-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  text-align: left;
+}
+
+.fence-wizard .fence-wizard-header > button {
+  position: absolute;
+}
+
+.fence-wizard [data-slot="dialog-title"] {
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.fence-wizard [data-slot="dialog-description"] {
+  font-size: 12px;
+  line-height: 17px;
 }
 
 .fence-wizard-header h3 {
@@ -1409,14 +1416,14 @@ textarea:focus-visible {
 
 .fence-step-body {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .fence-step-body > p {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 19px;
+  font-size: 12px;
+  line-height: 17px;
 }
 
 .fence-error {
@@ -1430,7 +1437,7 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 72px;
+  min-height: 56px;
   color: var(--accent);
   font-size: 40px;
   font-weight: 700;
@@ -1439,6 +1446,10 @@ textarea:focus-visible {
 
 .fence-canvas {
   position: relative;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -1453,8 +1464,10 @@ textarea:focus-visible {
 
 .fence-canvas img {
   display: block;
-  width: 100%;
+  width: auto;
   height: auto;
+  max-width: 100%;
+  max-height: 46vh;
   pointer-events: none;
 }
 

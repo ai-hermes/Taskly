@@ -706,6 +706,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
 
   const saveActiveSection = () => {
     saveSection(local, "Failed to save settings section:");
+    onClose();
   };
 
   const setWhitelist = (next: string[]) => {

@@ -7,6 +7,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { normalizeFence } from "@/services/fence";
+import { activateApp } from "@/services/window";
 import type { CaptureResult, FenceRect } from "@/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -65,7 +66,7 @@ export function FenceWizard({ appName, fences, onSave, onClear, onClose }: Fence
     }
   }, [appName]);
 
-  // Countdown then capture, giving the user time to bring the app forward.
+  // Countdown then capture, giving the app time to come to the foreground.
   useEffect(() => {
     if (countdown === null) return;
     if (countdown <= 0) {
@@ -75,6 +76,15 @@ export function FenceWizard({ appName, fences, onSave, onClear, onClose }: Fence
     const t = window.setTimeout(() => setCountdown(countdown - 1), 1000);
     return () => window.clearTimeout(t);
   }, [countdown, capture]);
+
+  const startCapture = useCallback(() => {
+    setCaptureError(null);
+    // Best-effort: bring the target app to the foreground automatically.
+    void activateApp(appName).catch(() => {
+      /* ignore; user can switch manually during countdown */
+    });
+    setCountdown(3);
+  }, [appName]);
 
   const relativePoint = (e: PointerEvent): { x: number; y: number } | null => {
     const el = canvasRef.current;
@@ -189,7 +199,11 @@ export function FenceWizard({ appName, fences, onSave, onClear, onClose }: Fence
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="fence-wizard max-w-4xl">
+      <DialogContent
+        className="fence-wizard max-w-4xl"
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader className="fence-wizard-header">
           <DialogTitle className="flex items-center gap-2">
             <CrosshairIcon />
@@ -214,8 +228,8 @@ export function FenceWizard({ appName, fences, onSave, onClear, onClose }: Fence
         {step === 1 && (
           <div className="fence-step-body">
             <p>
-              请将 <strong>{appName}</strong> 窗口切换到前台。点击「开始截图」后有 3
-              秒倒计时，请利用这段时间切换窗口。
+              点击「开始截图」后会自动把 <strong>{appName}</strong> 切换到前台，并有 3
+              秒倒计时。如未自动切换，请在倒计时内手动切换窗口。
             </p>
             {captureError && (
               <Alert variant="destructive">
@@ -225,7 +239,7 @@ export function FenceWizard({ appName, fences, onSave, onClear, onClose }: Fence
             {countdown !== null ? (
               <div className="fence-countdown">{countdown > 0 ? countdown : "…"}</div>
             ) : (
-              <Button type="button" onClick={() => setCountdown(3)}>
+              <Button type="button" onClick={startCapture}>
                 开始截图
               </Button>
             )}
