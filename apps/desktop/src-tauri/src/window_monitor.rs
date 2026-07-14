@@ -65,12 +65,20 @@ pub fn activate_app(app_name: &str) -> Result<(), Box<dyn std::error::Error>> {
     if name.is_empty() {
         return Err("empty app name".into());
     }
-    // Escape embedded double quotes for the AppleScript string literal.
-    let escaped = name.replace('\\', "\\\\").replace('"', "\\\"");
-    let script = format!(
-        r#"tell application "System Events" to set frontmost of (first application process whose name is "{escaped}") to true"#
-    );
-    let output = Command::new("osascript").args(["-e", &script]).output()?;
+    // Pass the app name as an AppleScript argument (via `argv`) instead of
+    // interpolating it into the script source. This avoids any escaping or
+    // AppleScript-injection concerns around the app name.
+    let output = Command::new("osascript")
+        .args([
+            "-e",
+            "on run argv",
+            "-e",
+            "tell application \"System Events\" to set frontmost of (first application process whose name is item 1 of argv) to true",
+            "-e",
+            "end run",
+            name,
+        ])
+        .output()?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
