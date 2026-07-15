@@ -231,6 +231,7 @@ textarea:focus-visible {
   background: color-mix(in srgb, var(--surface-subtle) 92%, transparent);
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
 .header-actions {
@@ -573,11 +574,11 @@ textarea:focus-visible {
 
 .todo-item {
   display: grid;
-  grid-template-columns: 16px 22px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 6px;
   min-height: 36px;
-  padding: 4px 4px 4px 4px;
+  padding: 4px 4px 4px 10px;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   transition: background-color 150ms var(--ease-out), border-color 150ms var(--ease-out), transform 150ms var(--ease-out);
@@ -1722,6 +1723,7 @@ textarea:focus-visible {
 }
 
 @media (prefers-reduced-transparency: reduce) {
+  .app-header,
   .app-topbar,
   .app-chat,
   .app-sidebar {
@@ -1732,6 +1734,7 @@ textarea:focus-visible {
 }
 
 @media (prefers-contrast: more) {
+  .app-header,
   .app-topbar,
   .app-chat,
   .app-sidebar {
@@ -3659,6 +3662,8 @@ h3 {
 }
 
 .app-sidebar {
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
   width: 336px;
   position: relative;
   min-width: 260px;
@@ -3847,7 +3852,7 @@ h3 {
 
 .todo-item {
   min-height: 44px;
-  padding: 7px 9px;
+  padding: 7px 9px 7px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
@@ -3879,8 +3884,9 @@ h3 {
 }
 
 .todo-check {
-  padding-top: 1px;
+  display: none;
 }
+
 
 .todo-content {
   gap: 2px;
@@ -3909,25 +3915,33 @@ h3 {
   margin: 0;
 }
 
+.todo-sortable > .todo-item {
+  cursor: grab;
+}
+
+.todo-sortable:active > .todo-item {
+  cursor: grabbing;
+}
+
 .todo-sortable.is-dragging {
-  opacity: 0.4;
+  opacity: 0;
 }
 
 .todo-drag-handle {
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 16px;
   height: 24px;
-  padding: 0;
-  border: 0;
   border-radius: 6px;
-  background: transparent;
   color: var(--text-quaternary);
-  cursor: grab;
-  touch-action: none;
+  pointer-events: none;
   opacity: 0;
-  transition: opacity 140ms ease, color 140ms ease, background 140ms ease;
+  transition: opacity 140ms var(--ease-out), color 140ms var(--ease-out);
 }
 
 .todo-item:hover .todo-drag-handle,
@@ -3953,7 +3967,7 @@ h3 {
   padding: 3px;
   margin: -3px;
   border-radius: var(--radius-md);
-  transition: background 140ms ease, box-shadow 140ms ease;
+  transition: background 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
 }
 
 .todo-drop-zone.is-over {
@@ -3966,14 +3980,16 @@ h3 {
 }
 
 .todo-drag-overlay .todo-item {
-  border-color: var(--border-strong);
+  border-color: color-mix(in srgb, var(--text-primary) 14%, var(--border));
   background: var(--surface);
-  box-shadow: var(--shadow-popover);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 8px 20px -6px rgba(0, 0, 0, 0.18);
+  transform: scale(1.01);
 }
 
 .todo-drag-overlay .todo-drag-handle {
-  opacity: 1;
-  cursor: grabbing;
+  display: none;
 }
 
 /* ── Task queue rendered as one big file-explorer tree ───────────── */
@@ -5193,7 +5209,7 @@ h3 {
 
 .settings-download-fill-indeterminate {
   width: 40%;
-  animation: ocr-download-indeterminate 1.4s ease-in-out infinite;
+  animation: ocr-download-indeterminate 1.4s linear infinite;
 }
 
 .settings-section-emphasis {
