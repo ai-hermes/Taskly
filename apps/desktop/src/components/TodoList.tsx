@@ -6,6 +6,7 @@ import {
   type ComponentProps,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   CheckCircleIcon,
   GripVerticalIcon,
@@ -18,14 +19,20 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
+  MeasuringStrategy,
   PointerSensor,
   closestCorners,
+  defaultDropAnimationSideEffects,
   useDroppable,
   useSensor,
   useSensors,
+  type Announcements,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type DropAnimation,
+  type Modifier,
+  type ScreenReaderInstructions,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -89,6 +96,43 @@ function deriveContainers(todos: TodoItem[]): Containers {
   const next: Containers = { confirmed: [], pending: [], done: [] };
   for (const todo of todos) next[groupOf(todo)].push(todo.id);
   return next;
+}
+
+/**
+ * Lock the drag overlay to the vertical axis so it stays glued to the column
+ * instead of drifting sideways under the pointer. Direct-manipulation feel.
+ */
+const restrictToVerticalAxis: Modifier = ({ transform }) => ({
+  ...transform,
+  x: 0,
+});
+
+/** Snappy, no-overshoot drop that settles the card without floating. */
+const dropAnimation: DropAnimation = {
+  duration: 180,
+  easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+  sideEffects: defaultDropAnimationSideEffects({
+    styles: { active: { opacity: "0.4" } },
+  }),
+};
+
+/** Keyboard drag instructions announced to screen readers on focus. */
+const screenReaderInstructions: ScreenReaderInstructions = {
+  draggable:
+    "按空格键或回车键拿起任务。拿起后，用方向键移动到目标位置，再次按空格键或回车键放下，按 Esc 键取消。",
+};
+
+/** Tracks the user's reduced-motion preference reactively. */
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduced(query.matches);
+    const onChange = () => setReduced(query.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+  return reduced;
 }
 
 /** Status patch applied when a todo is dragged into a different group. */
@@ -256,6 +300,10 @@ function SortableTodoRow({
   } = useSortable({ id: todo.id });
 
   const style = {
+    // Keep the sortable transform/transition so the strategy can shift
+    // neighbors correctly. The source itself is fully hidden while dragging
+    // (see .is-dragging) because the DragOverlay is the only visible copy --
+    // this avoids both the "runs down" ghost and neighbor overlap.
     transform: CSS.Transform.toString(transform),
     transition,
   };
@@ -265,19 +313,14 @@ function SortableTodoRow({
       ref={setNodeRef}
       style={style}
       className={cn("todo-sortable", isDragging && "is-dragging")}
+      {...attributes}
+      {...listeners}
     >
       <TodoRowBody
         dragHandle={
-          <button
-            type="button"
-            className="todo-drag-handle"
-            aria-label={`拖拽 ${todo.title}`}
-            onClick={(event) => event.stopPropagation()}
-            {...attributes}
-            {...listeners}
-          >
+          <span className="todo-drag-handle" aria-hidden>
             <GripVerticalIcon />
-          </button>
+          </span>
         }
         handlers={handlers}
         selected={selected}
@@ -381,11 +424,43 @@ export function TodoList() {
   );
   const [activeId, setActiveId] = useState<string | null>(null);
   const draggingRef = useRef(false);
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const todoById = useMemo(
     () => new Map(todos.map((todo) => [todo.id, todo])),
     [todos]
   );
+
+  const announcements = useMemo<Announcements>(() => {
+    const label = (id: unknown) => todoById.get(String(id))?.title ?? "任务";
+    const groupLabel = (id: unknown) => {
+      const key = String(id);
+      if ((GROUP_KEYS as string[]).includes(key)) {
+        return GROUP_META[key as TodoSectionKey].title;
+      }
+      return label(id);
+    };
+    return {
+      onDragStart({ active }) {
+        return `已拿起任务「${label(active.id)}」。`;
+      },
+      onDragOver({ active, over }) {
+        if (over) {
+          return `任务「${label(active.id)}」移动到「${groupLabel(over.id)}」。`;
+        }
+        return `任务「${label(active.id)}」当前不在可放置区域。`;
+      },
+      onDragEnd({ active, over }) {
+        if (over) {
+          return `任务「${label(active.id)}」已放置到「${groupLabel(over.id)}」。`;
+        }
+        return `任务「${label(active.id)}」已放回原位。`;
+      },
+      onDragCancel({ active }) {
+        return `已取消拖拽，任务「${label(active.id)}」回到原位。`;
+      },
+    };
+  }, [todoById]);
 
   // Keep local drag containers in sync with the store when not dragging.
   useEffect(() => {
@@ -524,6 +599,9 @@ export function TodoList() {
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
+        modifiers={[restrictToVerticalAxis]}
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+        accessibility={{ announcements, screenReaderInstructions }}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
@@ -545,22 +623,27 @@ export function TodoList() {
             />
           ))}
         </Accordion>
-        <DragOverlay>
-          {activeTodo ? (
-            <div className="todo-drag-overlay">
-              <TodoRowBody
-                dragHandle={
-                  <span className="todo-drag-handle">
-                    <GripVerticalIcon />
-                  </span>
-                }
-                handlers={handlers}
-                selected={activeTodoId === activeTodo.id}
-                todo={activeTodo}
-              />
-            </div>
-          ) : null}
-        </DragOverlay>
+        {createPortal(
+          <DragOverlay
+            dropAnimation={prefersReducedMotion ? null : dropAnimation}
+          >
+            {activeTodo ? (
+              <div className="todo-drag-overlay">
+                <TodoRowBody
+                  dragHandle={
+                    <span className="todo-drag-handle">
+                      <GripVerticalIcon />
+                    </span>
+                  }
+                  handlers={handlers}
+                  selected={activeTodoId === activeTodo.id}
+                  todo={activeTodo}
+                />
+              </div>
+            ) : null}
+          </DragOverlay>,
+          document.body
+        )}
       </DndContext>
 
       {editingTodo && (

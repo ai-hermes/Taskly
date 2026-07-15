@@ -417,36 +417,6 @@ function App() {
     };
   }, [route, chatCollapsed]);
 
-  useEffect(() => {
-    if (!sidebarResizing) return;
-    const previousCursor = document.body.style.cursor;
-    const previousUserSelect = document.body.style.userSelect;
-
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-
-    const onPointerMove = (event: PointerEvent) => {
-      const { x, width } = sidebarResizeStartRef.current;
-      setSidebarWidth(clampSidebarWidth(width + event.clientX - x));
-    };
-
-    const stopResize = () => {
-      setSidebarResizing(false);
-    };
-
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", stopResize);
-    window.addEventListener("pointercancel", stopResize);
-
-    return () => {
-      document.body.style.cursor = previousCursor;
-      document.body.style.userSelect = previousUserSelect;
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", stopResize);
-      window.removeEventListener("pointercancel", stopResize);
-    };
-  }, [sidebarResizing]);
-
   // Reminder service: fire system notifications when todos become due.
   useEffect(() => {
     if (!isLoaded) return;
@@ -541,11 +511,39 @@ function App() {
     (event: ReactPointerEvent<HTMLDivElement>) => {
       if (sidebarCollapsed) return;
       event.preventDefault();
+
+      // Capture the pointer on the handle so tracking survives fast movement
+      // outside the element's bounds — no need to wait for a React re-render.
+      event.currentTarget.setPointerCapture(event.pointerId);
+
       sidebarResizeStartRef.current = {
         x: event.clientX,
         width: sidebarWidth,
       };
       setSidebarResizing(true);
+
+      const previousCursor = document.body.style.cursor;
+      const previousUserSelect = document.body.style.userSelect;
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+
+      const onPointerMove = (e: PointerEvent) => {
+        const { x, width } = sidebarResizeStartRef.current;
+        setSidebarWidth(clampSidebarWidth(width + e.clientX - x));
+      };
+
+      const stopResize = () => {
+        document.body.style.cursor = previousCursor;
+        document.body.style.userSelect = previousUserSelect;
+        setSidebarResizing(false);
+        window.removeEventListener("pointermove", onPointerMove);
+        window.removeEventListener("pointerup", stopResize);
+        window.removeEventListener("pointercancel", stopResize);
+      };
+
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", stopResize);
+      window.addEventListener("pointercancel", stopResize);
     },
     [sidebarCollapsed, sidebarWidth]
   );

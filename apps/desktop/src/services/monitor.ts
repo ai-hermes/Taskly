@@ -18,6 +18,7 @@ export class MonitorService {
   private config: AppConfig;
   private onTodosFound: (todos: TodoItem[]) => void;
   private tickCount = 0;
+  private tickInFlight = false;
   private onOcrText?: (text: string) => void;
   private onError?: (message: string) => void;
   private getKnownTitles?: () => string[];
@@ -92,6 +93,11 @@ export class MonitorService {
    * Single monitoring cycle
    */
   private async tick() {
+    if (this.tickInFlight) {
+      console.debug("[Monitor] skip: previous tick still running");
+      return;
+    }
+    this.tickInFlight = true;
     const tickId = ++this.tickCount;
     const startedAt = Date.now();
     console.debug("[Monitor] tick #%d start", tickId);
@@ -241,6 +247,7 @@ export class MonitorService {
       this.onError?.(message);
       console.error("[Monitor] tick error:", error);
     } finally {
+      this.tickInFlight = false;
       console.debug("[Monitor] tick done in %dms", Date.now() - startedAt);
     }
   }

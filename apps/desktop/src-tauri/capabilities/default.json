@@ -33,6 +33,9 @@
         { "path": "$APPDATA/models/**" }
       ]
     },
-    "core:event:default"
+    "core:event:default",
+    "window-state:allow-filename",
+    "window-state:allow-restore-state",
+    "window-state:allow-save-window-state"
   ]
 }
